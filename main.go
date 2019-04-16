@@ -48,6 +48,7 @@ func main() {
 	auth.GasLimit = uint64(3000000) //in uints
 	auth.GasPrice = gasPrice
 
+	//Deploy contract
 	address, tx, instance, err := htlc.DeployHtlc(auth, client)
 	if err != nil {
 		log.Fatal(err)
@@ -58,4 +59,6 @@ func main() {
 	fmt.Println("tx hash = ", tx.Hash().Hex())
 
 	_ = instance
+
+
 }
