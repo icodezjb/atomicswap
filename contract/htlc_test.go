@@ -4,45 +4,50 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"math/big"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-func init()  {
-
+type Ganache struct  {
+	cmd *exec.Cmd
+	running bool
 }
 
-func listen(t *testing.T, cmd *exec.Cmd, runing *bool)  {
-	if err:= cmd.Run();err != nil {
-		*runing = false
-		t.Fatal("unexpect ganache-cli exit: ", err)
-	}
-}
-
-func TestDeployHtlc(t *testing.T)  {
-	running := true
-	pathOfGanache := "/usr/local/bin/ganache-cli"
-	cmdGanache := exec.Command(
-		pathOfGanache,
+var ganache = Ganache {
+	cmd: exec.Command(
+		"/usr/local/bin/ganache-cli",
 		"--account", "0xa5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6,111111111111111111111",
-		"-p", "7545")
+		"-p", "7545"),
+	running:true,
+}
 
-	defer func() {
-		if running {
-			cmdGanache.Process.Kill()
+func setup()  {
+	go func() {
+		if err:= ganache.cmd.Run();err != nil {
+			ganache.running = false
+			fmt.Println("unexpect ganache-cli exit: ", err)
+			os.Exit(1)
 		}
 	}()
 
-	go listen(t, cmdGanache, &running)
-
 	//waiting for rpc service
 	time.Sleep(2*time.Second)
+}
 
+func cleanup() {
+	if ganache.running {
+		_ = ganache.cmd.Process.Kill()
+	}
+}
+
+func makeAuthandClient(t *testing.T)(*bind.TransactOpts, bind.ContractBackend)  {
 	privateKey, err := crypto.HexToECDSA("a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6")
 	if err != nil {
 		t.Fatal(err)
@@ -76,13 +81,18 @@ func TestDeployHtlc(t *testing.T)  {
 	auth.GasLimit = uint64(3000000) //in uints
 	auth.GasPrice = gasPrice
 
+	return auth, client
+}
+
+func TestDeployHtlc(t *testing.T)  {
+	setup()
+	defer cleanup()
+
+	auth, client := makeAuthandClient(t)
+
 	//Deploy contract
-	address, tx, _, err := DeployHtlc(auth, client)
+	_, _, _, err := DeployHtlc(auth, client)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	fmt.Println("address hex = ", address.Hex())
-	fmt.Println("address string =", address.String())
-	fmt.Println("tx hash = ", tx.Hash().Hex())
 }
