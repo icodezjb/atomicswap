@@ -10,10 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/icodezjb/atomicswap/contract/helper"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/common"
 )
+
+const hourSeconds = 3600
 
 type Ganache struct  {
 	cmd *exec.Cmd
@@ -47,8 +52,8 @@ func cleanup() {
 	}
 }
 
-func makeAuthandClient(t *testing.T)(*bind.TransactOpts, bind.ContractBackend)  {
-	privateKey, err := crypto.HexToECDSA("a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6")
+func makeAuth(t *testing.T, private string, client *ethclient.Client, value int64)(*bind.TransactOpts)  {
+	privateKey, err := crypto.HexToECDSA(private)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,10 +66,6 @@ func makeAuthandClient(t *testing.T)(*bind.TransactOpts, bind.ContractBackend)  
 
 	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
 
-	client, err := ethclient.Dial("http://127.0.0.1:7545")
-	if err != nil {
-		t.Fatal(err)
-	}
 	nonce,err := client.PendingNonceAt(context.Background(),fromAddress)
 	if err != nil {
 		t.Fatal(err)
@@ -77,22 +78,42 @@ func makeAuthandClient(t *testing.T)(*bind.TransactOpts, bind.ContractBackend)  
 
 	auth := bind.NewKeyedTransactor(privateKey)
 	auth.Nonce = big.NewInt(int64(nonce))
-	auth.Value = big.NewInt(0) //in wei
+	//in wei
+	auth.Value = big.NewInt(value)
 	auth.GasLimit = uint64(3000000) //in uints
 	auth.GasPrice = gasPrice
 
-	return auth, client
+	return auth
 }
 
-func TestDeployHtlc(t *testing.T)  {
+func TestNewContract(t *testing.T) {
 	setup()
 	defer cleanup()
 
-	auth, client := makeAuthandClient(t)
+	var timeLock1Hour = time.Now().Unix() + hourSeconds
+	var senderKey   = "a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6"
+	var receiver = common.HexToAddress("0x5eb1231fd20ac35dff0d4295959cbd11c9cdae40")
+	var hashPair = htlc.NewSecretHashPair()
 
-	//Deploy contract
-	_, _, _, err := DeployHtlc(auth, client)
+	client, err := ethclient.Dial("http://127.0.0.1:7545")
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	senderAuth := makeAuth(t, senderKey, client, 0)
+
+	//Deploy contract
+	_, _, instance, err := DeployHtlc(senderAuth, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth = makeAuth(t, senderKey, client, 10^18)
+
+	tx, err := instance.NewContract(senderAuth, receiver, hashPair.Hash,big.NewInt(timeLock1Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(tx)
 }
