@@ -7,36 +7,29 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/icodezjb/atomicswap/contract/helper"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 const hourSeconds = 3600
-const oneFinney = 10^15
+const oneFinney = 1000000000000000
 const port  = "7545"
 
 
 type Ganache struct  {
 	cmd *exec.Cmd
 	running bool
-}
-
-type LogHTLC struct {
-	ContractId []byte
-	From		common.Address
-	To			common.Address
-	Value   	*big.Int
-	HashLock 	[]byte
-	TimeLock	*big.Int
 }
 
 var ganache = Ganache {
@@ -100,24 +93,6 @@ func makeAuth(t *testing.T, private string, client *ethclient.Client, value int6
 	return auth
 }
 
-func filterLogs(t *testing.T, contractAddress common.Address) []types.Log {
-	query := ethereum.FilterQuery{
-		Addresses:[]common.Address{contractAddress},
-	}
-
-	client, err := ethclient.Dial("ws://127.0.0.1:" + port)
-	if err != nil {
-		t.Fatal("Fatal new websocket client ", err)
-	}
-
-	logs, err := client.FilterLogs(context.Background(), query)
-	if	err	!=	nil	{
-		t.Fatal("Fatal new FilterLogs ", err)
-	}
-
-	return logs
-}
-
 func TestNewContract(t *testing.T) {
 	setup()
 	defer cleanup()
@@ -134,20 +109,58 @@ func TestNewContract(t *testing.T) {
 
 	senderAuth := makeAuth(t, senderKey, client, 0)
 
-	//Deploy contract
-	contractAddress, _, instance, err := DeployHtlc(senderAuth, client)
+	_, _, instance, err := DeployHtlc(senderAuth, client)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	senderAuth = makeAuth(t, senderKey, client, oneFinney)
 
-	_, err = instance.NewContract(senderAuth, receiver, hashPair.Hash,big.NewInt(timeLock1Hour))
+	tx, err := instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	logs := filterLogs(t, contractAddress)
+	receipt, err :=	client.TransactionReceipt(context.Background(),	tx.Hash())
+	if err != nil	{
+		t.Fatal(err)
+	}
 
-	t.Log(logs)
+	contractABI, err := abi.JSON(strings.NewReader(string(HtlcABI)))
+	if err != nil {
+		t.Fatal("Fatal read contract abi", err)
+	}
+
+	var event HtlcLogHTLCNew
+	if err := contractABI.Unpack(&event, "LogHTLCNew", receipt.Logs[0].Data); err != nil {
+		t.Fatal("Fatal unpack log data for LogHTLCNew", err)
+	}
+
+	event.ContractId = receipt.Logs[0].Topics[1]
+	event.Sender = common.HexToAddress(receipt.Logs[0].Topics[2].Hex())
+	event.Receiver = common.HexToAddress(receipt.Logs[0].Topics[3].Hex())
+
+	if match, _ := regexp.MatchString("^0x[0-9a-f]{64}$", hexutil.Encode(event.ContractId[:]));match == false {
+		t.Fatal("event.ContractId should be Sha256Hash")
+	}
+
+	if senderAuth.From.Hex() != event.Sender.Hex() {
+		t.Fatal("event.Sender should be the specified sender")
+	}
+
+	if receiver.Hex() != event.Receiver.Hex() {
+		t.Fatal("event.Receiver should be the specified receiver")
+	}
+
+	if big.NewInt(oneFinney).Cmp(event.Amount) != 0 {
+		t.Fatal("event.Amount should be equal oneFinney")
+	}
+
+	if hexutil.Encode(hashPair.Hash[:]) != hexutil.Encode(event.Hashlock[:]) {
+		t.Fatal("event.Hashlock should be the specified hashlock")
+	}
+
+	if big.NewInt(timeLock1Hour).Cmp(event.Timelock) != 0 {
+		t.Fatal("event.Timelock should be the specified timelock")
+	}
 }
