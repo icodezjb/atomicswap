@@ -131,36 +131,76 @@ func TestNewContract(t *testing.T) {
 		t.Fatal("Fatal read contract abi", err)
 	}
 
-	var event HtlcLogHTLCNew
-	if err := contractABI.Unpack(&event, "LogHTLCNew", receipt.Logs[0].Data); err != nil {
+	var logHTLCEvent HtlcLogHTLCNew
+	if err := contractABI.Unpack(&logHTLCEvent, "LogHTLCNew", receipt.Logs[0].Data); err != nil {
 		t.Fatal("Fatal unpack log data for LogHTLCNew", err)
 	}
 
-	event.ContractId = receipt.Logs[0].Topics[1]
-	event.Sender = common.HexToAddress(receipt.Logs[0].Topics[2].Hex())
-	event.Receiver = common.HexToAddress(receipt.Logs[0].Topics[3].Hex())
+	logHTLCEvent.ContractId = receipt.Logs[0].Topics[1]
+	logHTLCEvent.Sender = common.HexToAddress(receipt.Logs[0].Topics[2].Hex())
+	logHTLCEvent.Receiver = common.HexToAddress(receipt.Logs[0].Topics[3].Hex())
 
-	if match, _ := regexp.MatchString("^0x[0-9a-f]{64}$", hexutil.Encode(event.ContractId[:]));match == false {
-		t.Fatal("event.ContractId should be Sha256Hash")
+	//Check logHTLCEvent
+	if match, _ := regexp.MatchString("^0x[0-9a-f]{64}$", hexutil.Encode(logHTLCEvent.ContractId[:])); match == false {
+		t.Fatal("logHTLCEvent.ContractId should be Sha256Hash")
 	}
 
-	if senderAuth.From.Hex() != event.Sender.Hex() {
-		t.Fatal("event.Sender should be the specified sender")
+	if senderAuth.From.Hex() != logHTLCEvent.Sender.Hex() {
+		t.Fatal("logHTLCEvent.Sender should be the specified sender")
 	}
 
-	if receiver.Hex() != event.Receiver.Hex() {
-		t.Fatal("event.Receiver should be the specified receiver")
+	if receiver.Hex() != logHTLCEvent.Receiver.Hex() {
+		t.Fatal("logHTLCEvent.Receiver should be the specified receiver")
 	}
 
-	if big.NewInt(oneFinney).Cmp(event.Amount) != 0 {
-		t.Fatal("event.Amount should be equal oneFinney")
+	if big.NewInt(oneFinney).Cmp(logHTLCEvent.Amount) != 0 {
+		t.Fatal("logHTLCEvent.Amount should be equal oneFinney")
 	}
 
-	if hexutil.Encode(hashPair.Hash[:]) != hexutil.Encode(event.Hashlock[:]) {
-		t.Fatal("event.Hashlock should be the specified hashlock")
+	if hexutil.Encode(hashPair.Hash[:]) != hexutil.Encode(logHTLCEvent.Hashlock[:]) {
+		t.Fatal("logHTLCEvent.Hashlock should be the specified hashlock")
 	}
 
-	if big.NewInt(timeLock1Hour).Cmp(event.Timelock) != 0 {
-		t.Fatal("event.Timelock should be the specified timelock")
+	if big.NewInt(timeLock1Hour).Cmp(logHTLCEvent.Timelock) != 0 {
+		t.Fatal("logHTLCEvent.Timelock should be the specified timelock")
 	}
+
+	//Check contract details on-chain
+	contractDetails, err := instance.GetContract(&bind.CallOpts{From:senderAuth.From}, logHTLCEvent.ContractId)
+	if err != nil {
+		t.Fatal("Fatal call GetContract")
+	}
+
+	if senderAuth.From.Hex() != contractDetails.Sender.Hex() {
+		t.Fatal("contractDetails.Sender should be the specified sender")
+	}
+
+	if receiver.Hex() != contractDetails.Receiver.Hex() {
+		t.Fatal("contractDetails.Receiver should be the specified receiver")
+	}
+
+	if big.NewInt(oneFinney).Cmp(contractDetails.Amount) != 0 {
+		t.Fatal("contractDetails.Amount should be equal oneFinney")
+	}
+
+	if hexutil.Encode(hashPair.Hash[:]) != hexutil.Encode(contractDetails.Hashlock[:]) {
+		t.Fatal("contractDetails.Hashlock should be the specified hashlock")
+	}
+
+	if big.NewInt(timeLock1Hour).Cmp(contractDetails.Timelock) != 0 {
+		t.Fatal("contractDetails.Timelock should be the specified timelock")
+	}
+
+	if (hexutil.Encode(contractDetails.Preimage[:])) != "0x0000000000000000000000000000000000000000000000000000000000000000" {
+		t.Fatal("contractDetails.Preimage string should be 0x0000000000000000000000000000000000000000000000000000000000000000")
+	}
+
+	if contractDetails.Refunded != false {
+		t.Fatal("contractDetails.Refunded should be false")
+	}
+
+	if contractDetails.Withdrawn != false {
+		t.Fatal("contractDetails.Refunded should be false")
+	}
+
 }
