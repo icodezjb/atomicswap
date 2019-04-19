@@ -14,10 +14,10 @@ import (
 
 	"github.com/icodezjb/atomicswap/contract/helper"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -26,6 +26,10 @@ const hourSeconds = 3600
 const oneFinney = 1000000000000000
 const port  = "7545"
 const REQUIRE_FAILED_MSG = "VM Exception while processing transaction: revert"
+const senderKey = "a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6"
+const receiverKey = "08cd4fde21e980c7d05afa3b0d4d27534e646be3cc3a67b303b055d1166cbae3"
+const receiverAddress = "0xbf00c30b93d76ab3d45625645b752b68199c8221"
+const gasPrice = "20000000000"
 
 type Ganache struct  {
 	cmd *exec.Cmd
@@ -35,8 +39,9 @@ type Ganache struct  {
 var ganache = Ganache {
 	cmd: exec.Command(
 		"/usr/local/bin/ganache-cli",
-		"--account", "0xa5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6,111111111111111111111",
-		"-p", port),
+		"--account", "0x" + senderKey + ",111111111111111111111",
+		"--account", "0x" + receiverKey + ",1000000000000000000000000",
+		"-p", port, "-g", gasPrice),
 	running:true,
 }
 
@@ -78,17 +83,19 @@ func makeAuth(t *testing.T, private string, client *ethclient.Client, value int6
 		t.Fatal(err)
 	}
 
-	gasPrice, err := client.SuggestGasPrice(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
+	//gasPrice, err := client.SuggestGasPrice(context.Background())
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
 
 	auth := bind.NewKeyedTransactor(privateKey)
 	auth.Nonce = big.NewInt(int64(nonce))
 	//in wei
 	auth.Value = big.NewInt(value)
 	auth.GasLimit = uint64(3000000) //in uints
-	auth.GasPrice = gasPrice
+
+	gasPriceInt,_ := big.NewInt(0).SetString(gasPrice, 10)
+	auth.GasPrice = gasPriceInt
 
 	return auth
 }
@@ -98,8 +105,7 @@ func TestNewContract(t *testing.T) {
 	defer cleanup()
 
 	var timeLock1Hour = time.Now().Unix() + hourSeconds
-	var senderKey   = "a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6"
-	var receiver = common.HexToAddress("0x5eb1231fd20ac35dff0d4295959cbd11c9cdae40")
+	var receiver = common.HexToAddress(receiverAddress)
 	var hashPair = htlc.NewSecretHashPair()
 
 	client, err := ethclient.Dial("http://127.0.0.1:7545")
@@ -116,12 +122,12 @@ func TestNewContract(t *testing.T) {
 
 	senderAuth = makeAuth(t, senderKey, client, oneFinney)
 
-	tx, err := instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Hour))
+	newContractTx, err := instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	receipt, err :=	client.TransactionReceipt(context.Background(),	tx.Hash())
+	receipt, err :=	client.TransactionReceipt(context.Background(),	newContractTx.Hash())
 	if err != nil	{
 		t.Fatal(err)
 	}
@@ -211,8 +217,7 @@ func TestNewContractWithNoETH(t *testing.T) {
 	defer cleanup()
 
 	var timeLock1Hour = time.Now().Unix() + hourSeconds
-	var senderKey   = "a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6"
-	var receiver = common.HexToAddress("0x5eb1231fd20ac35dff0d4295959cbd11c9cdae40")
+	var receiver = common.HexToAddress(receiverAddress)
 	var hashPair = htlc.NewSecretHashPair()
 
 	client, err := ethclient.Dial("http://127.0.0.1:7545")
@@ -241,8 +246,7 @@ func TestNewContractWithPastTimelocks(t *testing.T)  {
 	defer cleanup()
 
 	var timeLockPast = time.Now().Unix() - 1
-	var senderKey   = "a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6"
-	var receiver = common.HexToAddress("0x5eb1231fd20ac35dff0d4295959cbd11c9cdae40")
+	var receiver = common.HexToAddress(receiverAddress)
 	var hashPair = htlc.NewSecretHashPair()
 
 	client, err := ethclient.Dial("http://127.0.0.1:7545")
@@ -271,8 +275,7 @@ func TestNewContractDuplicate(t *testing.T)  {
 	defer cleanup()
 
 	var timeLock1Hour = time.Now().Unix() + hourSeconds
-	var senderKey   = "a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6"
-	var receiver = common.HexToAddress("0x5eb1231fd20ac35dff0d4295959cbd11c9cdae40")
+	var receiver = common.HexToAddress(receiverAddress)
 	var hashPair = htlc.NewSecretHashPair()
 
 	client, err := ethclient.Dial("http://127.0.0.1:7545")
@@ -297,5 +300,83 @@ func TestNewContractDuplicate(t *testing.T)  {
 	_, err = instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Hour))
 	if !(err != nil && strings.HasPrefix(err.Error(),REQUIRE_FAILED_MSG)) {
 		t.Fatal("expected failure due to duplicate request")
+	}
+}
+
+//withdraw() should send receiver funds when given the correct secret preimage
+func TestWithdraw(t *testing.T) {
+	setup()
+	defer cleanup()
+
+	var timeLock1Hour = time.Now().Unix() + hourSeconds
+	var receiver = common.HexToAddress(receiverAddress)
+	var hashPair = htlc.NewSecretHashPair()
+
+	client, err := ethclient.Dial("http://127.0.0.1:7545")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth := makeAuth(t, senderKey, client, 0)
+
+	_, _, instance, err := DeployHtlc(senderAuth, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth = makeAuth(t, senderKey, client, oneFinney)
+
+	newContractTx, err := instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
+	if err != nil	{
+		t.Fatal(err)
+	}
+
+	contractId := newContractTxReceipt.Logs[0].Topics[1]
+	receiverBalBefore, err := client.BalanceAt(context.Background(), receiver, nil)
+	if err != nil {
+		t.Fatal("Fatal get receiver balance", err)
+	}
+
+	receiverAuth := makeAuth(t, receiverKey, client, 0)
+	paddedSecret := htlc.LeftPad32Bytes([]byte(hashPair.Secret))
+	withdrawTx, err := instance.Withdraw(receiverAuth, contractId, paddedSecret)
+	if err != nil {
+		t.Fatal("Fatal withdraw with the specified contractId and secret", err)
+	}
+
+	withdrawTxReceipt, err := client.TransactionReceipt(context.Background(), withdrawTx.Hash())
+	gasPriceInt,_ := big.NewInt(0).SetString(gasPrice, 10)
+	txGas := big.NewInt(0).Mul(big.NewInt(0).SetUint64(withdrawTxReceipt.GasUsed), gasPriceInt)
+
+	receiverBalAfter, err := client.BalanceAt(context.Background(), receiver, nil)
+	if err != nil {
+		t.Fatal("Fatal get receiver balance", err)
+	}
+
+	expectedBal := big.NewInt(0).Sub(big.NewInt(0).Add(receiverBalBefore, big.NewInt(oneFinney)), txGas)
+	if receiverBalAfter.Cmp(expectedBal) != 0 {
+		t.Fatal("receiver balance doesn't match")
+	}
+
+	contractDetails, err := instance.GetContract(&bind.CallOpts{From:receiver}, contractId)
+	if err != nil {
+		t.Fatal("Fatal GetContract call")
+	}
+
+	if contractDetails.Withdrawn != true {
+		t.Fatal("GetContract Withdrawn should be true")
+	}
+
+	if contractDetails.Refunded != false {
+		t.Fatal("GetContract Refunded should be true")
+	}
+
+	if string(contractDetails.Preimage[:]) != string(paddedSecret[:]) {
+		t.Fatal("GetContract Preimage doesn't match")
 	}
 }
