@@ -25,7 +25,7 @@ import (
 const hourSeconds = 3600
 const oneFinney = 1000000000000000
 const port  = "7545"
-
+const REQUIRE_FAILED_MSG = "VM Exception while processing transaction: revert"
 
 type Ganache struct  {
 	cmd *exec.Cmd
@@ -203,4 +203,34 @@ func TestNewContract(t *testing.T) {
 		t.Fatal("contractDetails.Refunded should be false")
 	}
 
+}
+
+//newContract() should fail when no ETH sent
+func TestNewContractWithNoETH(t *testing.T) {
+	setup()
+	defer cleanup()
+
+	var timeLock1Hour = time.Now().Unix() + hourSeconds
+	var senderKey   = "a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6"
+	var receiver = common.HexToAddress("0x5eb1231fd20ac35dff0d4295959cbd11c9cdae40")
+	var hashPair = htlc.NewSecretHashPair()
+
+	client, err := ethclient.Dial("http://127.0.0.1:7545")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth := makeAuth(t, senderKey, client, 0)
+
+	_, _, instance, err := DeployHtlc(senderAuth, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth = makeAuth(t, senderKey, client, 0)
+
+	_, err = instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Hour))
+	if !(err != nil && strings.HasPrefix(err.Error(),REQUIRE_FAILED_MSG)) {
+		t.Fatal("expected failure due to 0 value transferred")
+	}
 }
