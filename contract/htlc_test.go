@@ -469,3 +469,49 @@ func TestWithdrawNotReceiver(t *testing.T)  {
 		t.Fatal("expected failure due to not correct receiver")
 	}
 }
+
+//withdraw() should fail after timelock expiry
+func TestWithdrawAfterTimelock(t *testing.T) {
+	setup()
+	defer cleanup()
+
+	var timeLock1Second = time.Now().Unix() + 1
+	var receiver = common.HexToAddress(receiverAddress)
+	var hashPair = htlc.NewSecretHashPair()
+
+	client, err := ethclient.Dial("http://127.0.0.1:7545")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth := makeAuth(t, senderKey, client, 0)
+
+	_, _, instance, err := DeployHtlc(senderAuth, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth = makeAuth(t, senderKey, client, oneFinney)
+
+	newContractTx, err := instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
+	if err != nil	{
+		t.Fatal(err)
+	}
+
+
+	contractId := newContractTxReceipt.Logs[0].Topics[1]
+
+	time.Sleep(time.Second)
+
+	receiverAuth := makeAuth(t, receiverKey, client, 0)
+	paddedSecret := htlc.LeftPad32Bytes([]byte(hashPair.Secret))
+	_, err = instance.Withdraw(receiverAuth, contractId, paddedSecret)
+	if !(err != nil && strings.HasPrefix(err.Error(),REQUIRE_FAILED_MSG)) {
+		t.Fatal("expected failure due to not correct receiver")
+	}
+}
