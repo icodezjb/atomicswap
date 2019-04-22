@@ -28,6 +28,7 @@ const port  = "7545"
 const REQUIRE_FAILED_MSG = "VM Exception while processing transaction: revert"
 const senderKey = "a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6"
 const receiverKey = "08cd4fde21e980c7d05afa3b0d4d27534e646be3cc3a67b303b055d1166cbae3"
+const someGuyKey  = "b33103e4d30d1823c465d2131067348ea10b36a5a813d682ddf3f03c2177d160"
 const receiverAddress = "0xbf00c30b93d76ab3d45625645b752b68199c8221"
 const gasPrice = "20000000000"
 
@@ -41,6 +42,7 @@ var ganache = Ganache {
 		"/usr/local/bin/ganache-cli",
 		"--account", "0x" + senderKey + ",111111111111111111111",
 		"--account", "0x" + receiverKey + ",1000000000000000000000000",
+		"--account", "0x" + someGuyKey + ",1000000000000000000000000",
 		"-p", port, "-g", gasPrice),
 	running:true,
 }
@@ -423,4 +425,47 @@ func TestWithdrawMismatchPreimage(t *testing.T)  {
 		t.Fatal("expected failure due to mismatch preimage")
 	}
 
+}
+
+//withdraw() should fail if caller is not the receiver
+func TestWithdrawNotReceiver(t *testing.T)  {
+	setup()
+	defer cleanup()
+
+	var timeLock1Hour = time.Now().Unix() + hourSeconds
+	var receiver = common.HexToAddress(receiverAddress)
+	var hashPair = htlc.NewSecretHashPair()
+
+	client, err := ethclient.Dial("http://127.0.0.1:7545")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth := makeAuth(t, senderKey, client, 0)
+
+	_, _, instance, err := DeployHtlc(senderAuth, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth = makeAuth(t, senderKey, client, oneFinney)
+
+	newContractTx, err := instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
+	if err != nil	{
+		t.Fatal(err)
+	}
+
+	contractId := newContractTxReceipt.Logs[0].Topics[1]
+
+	someGuyAuth := makeAuth(t, someGuyKey, client, 0)
+	paddedSecret := htlc.LeftPad32Bytes([]byte(hashPair.Secret))
+	_, err = instance.Withdraw(someGuyAuth, contractId, paddedSecret)
+	if !(err != nil && strings.HasPrefix(err.Error(),REQUIRE_FAILED_MSG)) {
+		t.Fatal("expected failure due to not correct receiver")
+	}
 }
