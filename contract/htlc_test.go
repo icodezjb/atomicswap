@@ -515,3 +515,82 @@ func TestWithdrawAfterTimelock(t *testing.T) {
 		t.Fatal("expected failure due to not correct receiver")
 	}
 }
+
+//refund() should pass after timelock expiry
+func TestRefund(t *testing.T)  {
+	setup()
+	defer cleanup()
+
+	var timeLock1Second = time.Now().Unix() + 1
+	var receiver = common.HexToAddress(receiverAddress)
+	var hashPair = htlc.NewSecretHashPair()
+
+	client, err := ethclient.Dial("http://127.0.0.1:7545")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth := makeAuth(t, senderKey, client, 0)
+
+	_, _, instance, err := DeployHtlc(senderAuth, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth = makeAuth(t, senderKey, client, oneFinney)
+
+	newContractTx, err := instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
+	if err != nil	{
+		t.Fatal(err)
+	}
+
+
+	contractId := newContractTxReceipt.Logs[0].Topics[1]
+
+	time.Sleep(time.Second)
+
+	senderBalBefore, err := client.BalanceAt(context.Background(), senderAuth.From, nil)
+	if err != nil {
+		t.Fatal("Fatal get sender balance", err)
+	}
+
+	senderAuth = makeAuth(t, senderKey, client, 0)
+	refundTx, err := instance.Refund(senderAuth, contractId)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	refundTxReceipt, err := client.TransactionReceipt(context.Background(), refundTx.Hash())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gasPriceInt,_ := big.NewInt(0).SetString(gasPrice, 10)
+	txGas := big.NewInt(0).Mul(big.NewInt(0).SetUint64(refundTxReceipt.GasUsed), gasPriceInt)
+	expectedBal := senderBalBefore.Sub(big.NewInt(0).Add(senderBalBefore, big.NewInt(oneFinney)), txGas)
+
+	senderBalAfter, err := client.BalanceAt(context.Background(), senderAuth.From, nil)
+	if err != nil {
+		t.Fatal("Fatal get sender balance", err)
+	}
+	if senderBalAfter.Cmp(expectedBal) != 0 {
+		t.Fatal("sender balance doesn't match")
+	}
+
+	contractDetails, err := instance.GetContract(&bind.CallOpts{From:senderAuth.From}, contractId)
+	if err != nil {
+		t.Fatal("Fatal GetContract call")
+	}
+
+	if !contractDetails.Refunded {
+		t.Fatal("GetContract Refunded should be true")
+	}
+
+	if contractDetails.Withdrawn {
+		t.Fatal("GetContract Refunded should be false")
+	}
+}
