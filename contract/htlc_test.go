@@ -636,3 +636,30 @@ func TestRefundBeforeTimelock(t *testing.T)  {
 		t.Fatal("expected failure due to timelock active")
 	}
 }
+
+//getContract() returns empty record when contract doesn't exist
+func TestGetContract(t *testing.T)  {
+	setup()
+	defer cleanup()
+
+	client, err := ethclient.Dial("http://127.0.0.1:7545")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	senderAuth := makeAuth(t, senderKey, client, 0)
+
+	_, _, instance, err := DeployHtlc(senderAuth, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	contractDetails, err := instance.GetContract(&bind.CallOpts{From:senderAuth.From}, [32]byte{0xab,0xcd,0xef})
+	if err != nil {
+		t.Fatal("Fatal GetContract call")
+	}
+
+	if contractDetails.Sender.String() != "0x0000000000000000000000000000000000000000" {
+		t.Fatal("GetContract Sender should be empty")
+	}
+}
