@@ -1,7 +1,12 @@
 #### AtomicSwap example between two blockchain which are based on EVM
 the Hashed Timelock Contract refers to [hashed-timelock-contract-ethereum](https://github.com/chatch/hashed-timelock-contract-ethereum)
 
-##### solcjs,abigen,ganache-cli,go1.11
+##### solc,abigen,ganache-cli,go1.11
+
+##### test
+```bash
+go test -v -run Test ./contract
+```
 
 ##### lanuch  ganache client 
 ```bash
