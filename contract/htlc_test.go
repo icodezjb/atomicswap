@@ -24,6 +24,7 @@ const hourSeconds = 3600
 const oneFinney = 1000000000000000
 const port = "7545"
 const REQUIRE_FAILED_MSG = "VM Exception while processing transaction: revert"
+const REQUIRE_FAILED_TX_MSG = "the tx doesn't have the correct nonce"
 const senderKey = "a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6"
 const receiverKey = "08cd4fde21e980c7d05afa3b0d4d27534e646be3cc3a67b303b055d1166cbae3"
 const someGuyKey = "b33103e4d30d1823c465d2131067348ea10b36a5a813d682ddf3f03c2177d160"
@@ -289,7 +290,7 @@ func TestNewContractDuplicate(t *testing.T) {
 	}
 
 	_, err = instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Hour))
-	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_MSG)) {
+	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_TX_MSG)) {
 		t.Log(err)
 		t.Fatal("expected failure due to duplicate request")
 	}
