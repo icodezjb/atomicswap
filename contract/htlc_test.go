@@ -3,9 +3,7 @@ package htlc
 import (
 	"context"
 	"crypto/ecdsa"
-	"fmt"
 	"math/big"
-	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -24,49 +22,32 @@ import (
 
 const hourSeconds = 3600
 const oneFinney = 1000000000000000
-const port  = "7545"
+const port = "7545"
 const REQUIRE_FAILED_MSG = "VM Exception while processing transaction: revert"
 const senderKey = "a5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6"
 const receiverKey = "08cd4fde21e980c7d05afa3b0d4d27534e646be3cc3a67b303b055d1166cbae3"
-const someGuyKey  = "b33103e4d30d1823c465d2131067348ea10b36a5a813d682ddf3f03c2177d160"
+const someGuyKey = "b33103e4d30d1823c465d2131067348ea10b36a5a813d682ddf3f03c2177d160"
 const receiverAddress = "0xbf00c30b93d76ab3d45625645b752b68199c8221"
 const gasPrice = "20000000000"
 
-type Ganache struct  {
-	cmd *exec.Cmd
-	running bool
-}
-
-var ganache = Ganache {
-	cmd: exec.Command(
+func setup(t *testing.T) *exec.Cmd {
+	var ganache = exec.Command(
 		"/usr/local/bin/ganache-cli",
-		"--account", "0x" + senderKey + ",111111111111111111111",
-		"--account", "0x" + receiverKey + ",1000000000000000000000000",
-		"--account", "0x" + someGuyKey + ",1000000000000000000000000",
-		"-p", port, "-g", gasPrice),
-	running:true,
-}
+		"--account", "0x"+senderKey+",111111111111111111111",
+		"--account", "0x"+receiverKey+",1000000000000000000000000",
+		"--account", "0x"+someGuyKey+",1000000000000000000000000",
+		"-p", port, "-g", gasPrice)
 
-func setup()  {
-	go func() {
-		if err:= ganache.cmd.Run();err != nil {
-			ganache.running = false
-			fmt.Println("unexpect ganache-cli exit: ", err)
-			os.Exit(1)
-		}
-	}()
+	if err := ganache.Start(); err != nil {
+		t.Fatal("unexpect ganache-cli exit: ", err)
+	}
 
 	//waiting for rpc service
-	time.Sleep(2*time.Second)
+	time.Sleep(2 * time.Second)
+	return ganache
 }
 
-func cleanup() {
-	if ganache.running {
-		_ = ganache.cmd.Process.Kill()
-	}
-}
-
-func makeAuth(t *testing.T, private string, client *ethclient.Client, value int64)(*bind.TransactOpts)  {
+func makeAuth(t *testing.T, private string, client *ethclient.Client, value int64) *bind.TransactOpts {
 	privateKey, err := crypto.HexToECDSA(private)
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +61,7 @@ func makeAuth(t *testing.T, private string, client *ethclient.Client, value int6
 
 	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
 
-	nonce,err := client.PendingNonceAt(context.Background(),fromAddress)
+	nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,15 +77,17 @@ func makeAuth(t *testing.T, private string, client *ethclient.Client, value int6
 	auth.Value = big.NewInt(value)
 	auth.GasLimit = uint64(3000000) //in uints
 
-	gasPriceInt,_ := big.NewInt(0).SetString(gasPrice, 10)
+	gasPriceInt, _ := big.NewInt(0).SetString(gasPrice, 10)
 	auth.GasPrice = gasPriceInt
 
 	return auth
 }
 
 func TestNewContract(t *testing.T) {
-	setup()
-	defer cleanup()
+	var ganache = setup(t)
+	defer func() {
+		_ = ganache.Process.Kill()
+	}()
 
 	var timeLock1Hour = time.Now().Unix() + hourSeconds
 	var receiver = common.HexToAddress(receiverAddress)
@@ -129,8 +112,8 @@ func TestNewContract(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	receipt, err :=	client.TransactionReceipt(context.Background(),	newContractTx.Hash())
-	if err != nil	{
+	receipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -174,7 +157,7 @@ func TestNewContract(t *testing.T) {
 	}
 
 	//Check contract details on-chain
-	contractDetails, err := instance.GetContract(&bind.CallOpts{From:senderAuth.From}, logHTLCEvent.ContractId)
+	contractDetails, err := instance.GetContract(&bind.CallOpts{From: senderAuth.From}, logHTLCEvent.ContractId)
 	if err != nil {
 		t.Fatal("Fatal call GetContract")
 	}
@@ -215,8 +198,10 @@ func TestNewContract(t *testing.T) {
 
 //newContract() should fail when no ETH sent
 func TestNewContractWithNoETH(t *testing.T) {
-	setup()
-	defer cleanup()
+	var ganache = setup(t)
+	defer func() {
+		_ = ganache.Process.Kill()
+	}()
 
 	var timeLock1Hour = time.Now().Unix() + hourSeconds
 	var receiver = common.HexToAddress(receiverAddress)
@@ -237,15 +222,17 @@ func TestNewContractWithNoETH(t *testing.T) {
 	senderAuth = makeAuth(t, senderKey, client, 0)
 
 	_, err = instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Hour))
-	if !(err != nil && strings.HasPrefix(err.Error(),REQUIRE_FAILED_MSG)) {
+	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_MSG)) {
 		t.Fatal("expected failure due to 0 value transferred")
 	}
 }
 
 //newContract() should fail with timelocks in the past
-func TestNewContractWithPastTimelocks(t *testing.T)  {
-	setup()
-	defer cleanup()
+func TestNewContractWithPastTimelocks(t *testing.T) {
+	var ganache = setup(t)
+	defer func() {
+		_ = ganache.Process.Kill()
+	}()
 
 	var timeLockPast = time.Now().Unix() - 1
 	var receiver = common.HexToAddress(receiverAddress)
@@ -266,15 +253,17 @@ func TestNewContractWithPastTimelocks(t *testing.T)  {
 	senderAuth = makeAuth(t, senderKey, client, oneFinney)
 
 	_, err = instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLockPast))
-	if !(err != nil && strings.HasPrefix(err.Error(),REQUIRE_FAILED_MSG)) {
+	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_MSG)) {
 		t.Fatal("expected failure due past timelock")
 	}
 }
 
 //newContract() should reject a duplicate contract request
-func TestNewContractDuplicate(t *testing.T)  {
-	setup()
-	defer cleanup()
+func TestNewContractDuplicate(t *testing.T) {
+	var ganache = setup(t)
+	defer func() {
+		_ = ganache.Process.Kill()
+	}()
 
 	var timeLock1Hour = time.Now().Unix() + hourSeconds
 	var receiver = common.HexToAddress(receiverAddress)
@@ -300,15 +289,18 @@ func TestNewContractDuplicate(t *testing.T)  {
 	}
 
 	_, err = instance.NewContract(senderAuth, receiver, hashPair.Hash, big.NewInt(timeLock1Hour))
-	if !(err != nil && strings.HasPrefix(err.Error(),REQUIRE_FAILED_MSG)) {
+	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_MSG)) {
+		t.Log(err)
 		t.Fatal("expected failure due to duplicate request")
 	}
 }
 
 //withdraw() should send receiver funds when given the correct secret preimage
 func TestWithdraw(t *testing.T) {
-	setup()
-	defer cleanup()
+	var ganache = setup(t)
+	defer func() {
+		_ = ganache.Process.Kill()
+	}()
 
 	var timeLock1Hour = time.Now().Unix() + hourSeconds
 	var receiver = common.HexToAddress(receiverAddress)
@@ -334,7 +326,7 @@ func TestWithdraw(t *testing.T) {
 	}
 
 	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
-	if err != nil	{
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -352,7 +344,7 @@ func TestWithdraw(t *testing.T) {
 	}
 
 	withdrawTxReceipt, err := client.TransactionReceipt(context.Background(), withdrawTx.Hash())
-	gasPriceInt,_ := big.NewInt(0).SetString(gasPrice, 10)
+	gasPriceInt, _ := big.NewInt(0).SetString(gasPrice, 10)
 	txGas := big.NewInt(0).Mul(big.NewInt(0).SetUint64(withdrawTxReceipt.GasUsed), gasPriceInt)
 
 	receiverBalAfter, err := client.BalanceAt(context.Background(), receiver, nil)
@@ -365,7 +357,7 @@ func TestWithdraw(t *testing.T) {
 		t.Fatal("receiver balance doesn't match")
 	}
 
-	contractDetails, err := instance.GetContract(&bind.CallOpts{From:receiver}, contractId)
+	contractDetails, err := instance.GetContract(&bind.CallOpts{From: receiver}, contractId)
 	if err != nil {
 		t.Fatal("Fatal GetContract call")
 	}
@@ -384,9 +376,11 @@ func TestWithdraw(t *testing.T) {
 }
 
 //withdraw() should fail if preimage does not hash to hashX
-func TestWithdrawMismatchPreimage(t *testing.T)  {
-	setup()
-	defer cleanup()
+func TestWithdrawMismatchPreimage(t *testing.T) {
+	var ganache = setup(t)
+	defer func() {
+		_ = ganache.Process.Kill()
+	}()
 
 	var timeLock1Hour = time.Now().Unix() + hourSeconds
 	var receiver = common.HexToAddress(receiverAddress)
@@ -412,7 +406,7 @@ func TestWithdrawMismatchPreimage(t *testing.T)  {
 	}
 
 	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
-	if err != nil	{
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -421,16 +415,18 @@ func TestWithdrawMismatchPreimage(t *testing.T)  {
 	receiverAuth := makeAuth(t, receiverKey, client, 0)
 	wrongSecret := htlc.LeftPad32Bytes([]byte("random"))
 	_, err = instance.Withdraw(receiverAuth, contractId, wrongSecret)
-	if !(err != nil && strings.HasPrefix(err.Error(),REQUIRE_FAILED_MSG)) {
+	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_MSG)) {
 		t.Fatal("expected failure due to mismatch preimage")
 	}
 
 }
 
 //withdraw() should fail if caller is not the receiver
-func TestWithdrawNotReceiver(t *testing.T)  {
-	setup()
-	defer cleanup()
+func TestWithdrawNotReceiver(t *testing.T) {
+	var ganache = setup(t)
+	defer func() {
+		_ = ganache.Process.Kill()
+	}()
 
 	var timeLock1Hour = time.Now().Unix() + hourSeconds
 	var receiver = common.HexToAddress(receiverAddress)
@@ -456,7 +452,7 @@ func TestWithdrawNotReceiver(t *testing.T)  {
 	}
 
 	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
-	if err != nil	{
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -465,15 +461,17 @@ func TestWithdrawNotReceiver(t *testing.T)  {
 	someGuyAuth := makeAuth(t, someGuyKey, client, 0)
 	paddedSecret := htlc.LeftPad32Bytes([]byte(hashPair.Secret))
 	_, err = instance.Withdraw(someGuyAuth, contractId, paddedSecret)
-	if !(err != nil && strings.HasPrefix(err.Error(),REQUIRE_FAILED_MSG)) {
+	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_MSG)) {
 		t.Fatal("expected failure due to not correct receiver")
 	}
 }
 
 //withdraw() should fail after timelock expiry
 func TestWithdrawAfterTimelock(t *testing.T) {
-	setup()
-	defer cleanup()
+	var ganache = setup(t)
+	defer func() {
+		_ = ganache.Process.Kill()
+	}()
 
 	var timeLock1Second = time.Now().Unix() + 1
 	var receiver = common.HexToAddress(receiverAddress)
@@ -499,10 +497,9 @@ func TestWithdrawAfterTimelock(t *testing.T) {
 	}
 
 	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
-	if err != nil	{
+	if err != nil {
 		t.Fatal(err)
 	}
-
 
 	contractId := newContractTxReceipt.Logs[0].Topics[1]
 
@@ -511,15 +508,17 @@ func TestWithdrawAfterTimelock(t *testing.T) {
 	receiverAuth := makeAuth(t, receiverKey, client, 0)
 	paddedSecret := htlc.LeftPad32Bytes([]byte(hashPair.Secret))
 	_, err = instance.Withdraw(receiverAuth, contractId, paddedSecret)
-	if !(err != nil && strings.HasPrefix(err.Error(),REQUIRE_FAILED_MSG)) {
+	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_MSG)) {
 		t.Fatal("expected failure due to not correct receiver")
 	}
 }
 
 //refund() should pass after timelock expiry
-func TestRefund(t *testing.T)  {
-	setup()
-	defer cleanup()
+func TestRefund(t *testing.T) {
+	var ganache = setup(t)
+	defer func() {
+		_ = ganache.Process.Kill()
+	}()
 
 	var timeLock1Second = time.Now().Unix() + 1
 	var receiver = common.HexToAddress(receiverAddress)
@@ -545,10 +544,9 @@ func TestRefund(t *testing.T)  {
 	}
 
 	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
-	if err != nil	{
+	if err != nil {
 		t.Fatal(err)
 	}
-
 
 	contractId := newContractTxReceipt.Logs[0].Topics[1]
 
@@ -569,7 +567,7 @@ func TestRefund(t *testing.T)  {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gasPriceInt,_ := big.NewInt(0).SetString(gasPrice, 10)
+	gasPriceInt, _ := big.NewInt(0).SetString(gasPrice, 10)
 	txGas := big.NewInt(0).Mul(big.NewInt(0).SetUint64(refundTxReceipt.GasUsed), gasPriceInt)
 	expectedBal := senderBalBefore.Sub(big.NewInt(0).Add(senderBalBefore, big.NewInt(oneFinney)), txGas)
 
@@ -581,7 +579,7 @@ func TestRefund(t *testing.T)  {
 		t.Fatal("sender balance doesn't match")
 	}
 
-	contractDetails, err := instance.GetContract(&bind.CallOpts{From:senderAuth.From}, contractId)
+	contractDetails, err := instance.GetContract(&bind.CallOpts{From: senderAuth.From}, contractId)
 	if err != nil {
 		t.Fatal("Fatal GetContract call")
 	}
@@ -596,9 +594,11 @@ func TestRefund(t *testing.T)  {
 }
 
 //refund() should fail before the timelock expiry
-func TestRefundBeforeTimelock(t *testing.T)  {
-	setup()
-	defer cleanup()
+func TestRefundBeforeTimelock(t *testing.T) {
+	var ganache = setup(t)
+	defer func() {
+		_ = ganache.Process.Kill()
+	}()
 
 	var timeLock1Hour = time.Now().Unix() + hourSeconds
 	var receiver = common.HexToAddress(receiverAddress)
@@ -624,7 +624,7 @@ func TestRefundBeforeTimelock(t *testing.T)  {
 	}
 
 	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
-	if err != nil	{
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -632,15 +632,17 @@ func TestRefundBeforeTimelock(t *testing.T)  {
 
 	senderAuth = makeAuth(t, senderKey, client, 0)
 	_, err = instance.Refund(senderAuth, contractId)
-	if !(err != nil && strings.HasPrefix(err.Error(),REQUIRE_FAILED_MSG)) {
+	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_MSG)) {
 		t.Fatal("expected failure due to timelock active")
 	}
 }
 
 //getContract() returns empty record when contract doesn't exist
-func TestGetContract(t *testing.T)  {
-	setup()
-	defer cleanup()
+func TestGetContract(t *testing.T) {
+	var ganache = setup(t)
+	defer func() {
+		_ = ganache.Process.Kill()
+	}()
 
 	client, err := ethclient.Dial("http://127.0.0.1:7545")
 	if err != nil {
@@ -654,7 +656,7 @@ func TestGetContract(t *testing.T)  {
 		t.Fatal(err)
 	}
 
-	contractDetails, err := instance.GetContract(&bind.CallOpts{From:senderAuth.From}, [32]byte{0xab,0xcd,0xef})
+	contractDetails, err := instance.GetContract(&bind.CallOpts{From: senderAuth.From}, [32]byte{0xab, 0xcd, 0xef})
 	if err != nil {
 		t.Fatal("Fatal GetContract call")
 	}

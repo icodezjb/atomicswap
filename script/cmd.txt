@@ -1,6 +1,6 @@
-#solcjs version 0.5.7+commit.6da8b019.Emscripten.clang
+#solc Version: 0.5.10+commit.5a6ea5b1.Linux.g++
 cd contract/
-solcjs HashedTimelock.sol -o ./ --abi
-solcjs HashedTimelock.sol -o ./ --bin
-cd script/
-./abigen  --pkg=htlc --out=../contract/htlc.go --abi ../contract/HashedTimelock_sol_HashedTimelock.abi --bin ../contract/HashedTimelock_sol_HashedTimelock.bin
+solc --abi --bin -o ./ HashedTimelock.sol
+
+../script/abigen  --pkg=htlc --out=./htlc.go --abi ./HashedTimelock.abi --bin ./HashedTimelock.bin
+
