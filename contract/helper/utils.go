@@ -2,43 +2,20 @@ package htlc
 
 import (
 	"crypto/sha256"
-	"encoding/binary"
 	"math/rand"
-	"time"
 )
 
 type SecretHashPair struct {
-	Secret uint32
+	Secret [32]byte
 	Hash   [32]byte
 }
 
-func NewSecretHashPair() SecretHashPair {
-	rand.Seed(time.Now().UnixNano())
+func NewSecretHashPair() *SecretHashPair {
 
-	var random = rand.Uint32()
+	s := new(SecretHashPair)
+	rand.Read(s.Secret[:])
 
-	padded := LeftPad32Bytes(Uint32ToBytes(random))
+	s.Hash = sha256.Sum256(s.Secret[:])
 
-	return SecretHashPair{
-		Secret: random,
-		Hash:   sha256.Sum256(padded[:]),
-	}
-}
-
-// LeftPad32Bytes zero-pads slice to the left up to length 32.
-func LeftPad32Bytes(slice []byte) [32]byte {
-	var padded [32]byte
-	if 32 <= len(slice) {
-		return padded
-	}
-
-	copy(padded[32-len(slice):], slice)
-
-	return padded
-}
-
-func Uint32ToBytes(u uint32) []byte {
-	var buf = make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, u)
-	return buf
+	return s
 }

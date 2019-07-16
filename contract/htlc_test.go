@@ -1,6 +1,7 @@
 package htlc
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"math/big"
@@ -338,8 +339,8 @@ func TestWithdraw(t *testing.T) {
 	}
 
 	receiverAuth := makeAuth(t, receiverKey, client, 0)
-	paddedSecret := htlc.LeftPad32Bytes([]byte(hashPair.Secret))
-	withdrawTx, err := instance.Withdraw(receiverAuth, contractId, paddedSecret)
+
+	withdrawTx, err := instance.Withdraw(receiverAuth, contractId, hashPair.Secret)
 	if err != nil {
 		t.Fatal("Fatal withdraw with the specified contractId and secret", err)
 	}
@@ -371,7 +372,7 @@ func TestWithdraw(t *testing.T) {
 		t.Fatal("GetContract Refunded should be true")
 	}
 
-	if string(contractDetails.Preimage[:]) != string(paddedSecret[:]) {
+	if bytes.Equal(contractDetails.Preimage[:], (hashPair.Secret[:])) == false {
 		t.Fatal("GetContract Preimage doesn't match")
 	}
 }
@@ -414,8 +415,10 @@ func TestWithdrawMismatchPreimage(t *testing.T) {
 	contractId := newContractTxReceipt.Logs[0].Topics[1]
 
 	receiverAuth := makeAuth(t, receiverKey, client, 0)
-	wrongSecret := htlc.LeftPad32Bytes([]byte("random"))
-	_, err = instance.Withdraw(receiverAuth, contractId, wrongSecret)
+
+	wrongSecret := htlc.NewSecretHashPair()
+
+	_, err = instance.Withdraw(receiverAuth, contractId, wrongSecret.Secret)
 	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_MSG)) {
 		t.Fatal("expected failure due to mismatch preimage")
 	}
@@ -460,8 +463,8 @@ func TestWithdrawNotReceiver(t *testing.T) {
 	contractId := newContractTxReceipt.Logs[0].Topics[1]
 
 	someGuyAuth := makeAuth(t, someGuyKey, client, 0)
-	paddedSecret := htlc.LeftPad32Bytes([]byte(hashPair.Secret))
-	_, err = instance.Withdraw(someGuyAuth, contractId, paddedSecret)
+
+	_, err = instance.Withdraw(someGuyAuth, contractId, hashPair.Secret)
 	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_MSG)) {
 		t.Fatal("expected failure due to not correct receiver")
 	}
@@ -507,8 +510,8 @@ func TestWithdrawAfterTimelock(t *testing.T) {
 	time.Sleep(time.Second)
 
 	receiverAuth := makeAuth(t, receiverKey, client, 0)
-	paddedSecret := htlc.LeftPad32Bytes([]byte(hashPair.Secret))
-	_, err = instance.Withdraw(receiverAuth, contractId, paddedSecret)
+
+	_, err = instance.Withdraw(receiverAuth, contractId, hashPair.Secret)
 	if !(err != nil && strings.HasPrefix(err.Error(), REQUIRE_FAILED_MSG)) {
 		t.Fatal("expected failure due to not correct receiver")
 	}
