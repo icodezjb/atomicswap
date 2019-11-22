@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icodezjb/atomicswap/contract/helper"
+	htlc "github.com/icodezjb/atomicswap/contract/helper"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -304,9 +304,12 @@ func TestWithdraw(t *testing.T) {
 		_ = ganache.Process.Kill()
 	}()
 
-	var timeLock1Hour = time.Now().Unix() + hourSeconds
-	var receiver = common.HexToAddress(receiverAddress)
-	var hashPair = htlc.NewSecretHashPair()
+	var (
+		timeLock1Hour = time.Now().Unix() + hourSeconds
+		receiver      = common.HexToAddress(receiverAddress)
+		hashPair      = htlc.NewSecretHashPair()
+		ctx           = context.Background()
+	)
 
 	client, err := ethclient.Dial("http://127.0.0.1:7545")
 	if err != nil {
@@ -327,13 +330,13 @@ func TestWithdraw(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
+	newContractTxReceipt, err := client.TransactionReceipt(ctx, newContractTx.Hash())
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	contractId := newContractTxReceipt.Logs[0].Topics[1]
-	receiverBalBefore, err := client.BalanceAt(context.Background(), receiver, nil)
+	receiverBalBefore, err := client.BalanceAt(ctx, receiver, nil)
 	if err != nil {
 		t.Fatal("Fatal get receiver balance", err)
 	}
@@ -345,11 +348,14 @@ func TestWithdraw(t *testing.T) {
 		t.Fatal("Fatal withdraw with the specified contractId and secret", err)
 	}
 
-	withdrawTxReceipt, err := client.TransactionReceipt(context.Background(), withdrawTx.Hash())
+	withdrawTxReceipt, err := client.TransactionReceipt(ctx, withdrawTx.Hash())
+	if err != nil {
+		t.Fatal("Fatal get transaction receipt")
+	}
 	gasPriceInt, _ := big.NewInt(0).SetString(gasPrice, 10)
 	txGas := big.NewInt(0).Mul(big.NewInt(0).SetUint64(withdrawTxReceipt.GasUsed), gasPriceInt)
 
-	receiverBalAfter, err := client.BalanceAt(context.Background(), receiver, nil)
+	receiverBalAfter, err := client.BalanceAt(ctx, receiver, nil)
 	if err != nil {
 		t.Fatal("Fatal get receiver balance", err)
 	}
@@ -524,9 +530,12 @@ func TestRefund(t *testing.T) {
 		_ = ganache.Process.Kill()
 	}()
 
-	var timeLock1Second = time.Now().Unix() + 1
-	var receiver = common.HexToAddress(receiverAddress)
-	var hashPair = htlc.NewSecretHashPair()
+	var (
+		timeLock1Second = time.Now().Unix() + 1
+		receiver        = common.HexToAddress(receiverAddress)
+		hashPair        = htlc.NewSecretHashPair()
+		ctx             = context.Background()
+	)
 
 	client, err := ethclient.Dial("http://127.0.0.1:7545")
 	if err != nil {
@@ -547,7 +556,7 @@ func TestRefund(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	newContractTxReceipt, err := client.TransactionReceipt(context.Background(), newContractTx.Hash())
+	newContractTxReceipt, err := client.TransactionReceipt(ctx, newContractTx.Hash())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -556,7 +565,7 @@ func TestRefund(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	senderBalBefore, err := client.BalanceAt(context.Background(), senderAuth.From, nil)
+	senderBalBefore, err := client.BalanceAt(ctx, senderAuth.From, nil)
 	if err != nil {
 		t.Fatal("Fatal get sender balance", err)
 	}
@@ -567,7 +576,7 @@ func TestRefund(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	refundTxReceipt, err := client.TransactionReceipt(context.Background(), refundTx.Hash())
+	refundTxReceipt, err := client.TransactionReceipt(ctx, refundTx.Hash())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -575,7 +584,7 @@ func TestRefund(t *testing.T) {
 	txGas := big.NewInt(0).Mul(big.NewInt(0).SetUint64(refundTxReceipt.GasUsed), gasPriceInt)
 	expectedBal := senderBalBefore.Sub(big.NewInt(0).Add(senderBalBefore, big.NewInt(oneFinney)), txGas)
 
-	senderBalAfter, err := client.BalanceAt(context.Background(), senderAuth.From, nil)
+	senderBalAfter, err := client.BalanceAt(ctx, senderAuth.From, nil)
 	if err != nil {
 		t.Fatal("Fatal get sender balance", err)
 	}
