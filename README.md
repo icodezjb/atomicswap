@@ -11,7 +11,12 @@ the Hashed Timelock Contract refers to [hashed-timelock-contract-ethereum](https
 go test -v -run Test ./contract
 ```
 
-##### lanuch  ganache client 
+##### install & lanuch  ganache client 
+
+```bash
+ sudo npm install -g ganache-cli
+```
+
 ```bash
 ganache-cli --account "0xa5a1aca01671e2660f1ee47abfd7065d5d38f99fa4a53495f02df939cd5b86f6,111111111111111111111" -p 7545
 ```
