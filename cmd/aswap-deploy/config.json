@@ -1,0 +1,8 @@
+{
+  "chainId": 1,
+  "chainName": "eth",
+  "url": "http://127.0.0.1:7545",
+  "from": "",
+  "keystore": "",
+  "password": ""
+}
