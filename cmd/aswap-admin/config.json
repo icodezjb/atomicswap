@@ -1,0 +1,9 @@
+{
+    "chainId": 1,
+    "chainName": "eth",
+    "url": "http://127.0.0.1:7545",
+    "from": "0xffd79941b7085805f48ded97298694c6bb950e2c",
+    "keystoreDir": "./",
+    "password": "111111",
+    "contract": "0xb8869440E39a39d19c9B07385F55aada7981fBAE"
+}

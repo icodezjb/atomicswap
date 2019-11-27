@@ -5,7 +5,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/icodezjb/atomicswap/cmd/aswap-deploy/deploy"
+	"github.com/icodezjb/atomicswap/cmd/aswap-admin/deploy"
 
 	"github.com/spf13/cobra"
 )
@@ -24,8 +24,8 @@ var (
 	}
 )
 
-// VersionFunc holds the textual version string.
-func VersionFunc() string {
+// versionFunc holds the textual version string.
+func versionFunc() string {
 	return fmt.Sprintf(": %s\ncommit: %s\nbuild time: %s\ngolang version: %s\n",
 		version, Commit, BuildTime, runtime.Version()+" "+runtime.GOOS+"/"+runtime.GOARCH)
 }
@@ -63,21 +63,22 @@ Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
 
 Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
 
-config.json example
+config-example.json 
 {
   "chainId": 1,
   "chainName": "eth",
   "url": "http://127.0.0.1:7545",
   "from": "0xffd79941b7085805f48ded97298694c6bb950e2c",
   "keystoreDir": "./",
-  "password": "111111"
+  "password": "password",
+  "contract": ""
 }
 `)
 
 }
 
 func main() {
-	rootCmd.Version = VersionFunc()
+	rootCmd.Version = versionFunc()
 
 	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
 		dHandle.ParseConfig()
