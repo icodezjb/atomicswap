@@ -16,7 +16,7 @@ var (
 
 	version = "0.2.0"
 
-	dHandle deploy.DeployHandle
+	dHandle deploy.Handle
 
 	rootCmd = &cobra.Command{
 		Use:   "aswap-deploy",

@@ -21,15 +21,15 @@ import (
 )
 
 type Config struct {
-	ChainId   uint   `json:"chainId"`
-	ChainName string `json:"chainName"`
-	Url       string `json:"url"`
-	From      string `json:"from"`
-	KeyStore  string `json:"keystoreDir"`
-	Password  string `json:"password"`
+	ChainId   *big.Int `json:"chainId"`
+	ChainName string   `json:"chainName"`
+	Url       string   `json:"url"`
+	From      string   `json:"from"`
+	KeyStore  string   `json:"keystoreDir"`
+	Password  string   `json:"password"`
 }
 
-type DeployHandle struct {
+type Handle struct {
 	ConfigPath string
 	Config     Config
 	Client     *ethclient.Client
@@ -37,7 +37,7 @@ type DeployHandle struct {
 	Account    accounts.Account
 }
 
-func (d *DeployHandle) ParseConfig() {
+func (d *Handle) ParseConfig() {
 	configFile, err := os.Open(d.ConfigPath)
 	if err != nil {
 		logger.FatalError("Fatal to open config file (%s): %v", d.ConfigPath, err)
@@ -53,7 +53,7 @@ func (d *DeployHandle) ParseConfig() {
 	}
 }
 
-func (d *DeployHandle) Connect() {
+func (d *Handle) Connect() {
 	client, err := ethclient.Dial(d.Config.Url)
 	if err != nil {
 		logger.FatalError("Fatal to connect server: %s", err)
@@ -61,7 +61,7 @@ func (d *DeployHandle) Connect() {
 	d.Client = client
 }
 
-func (d *DeployHandle) Unlock() {
+func (d *Handle) Unlock() {
 	d.Ks = keystore.NewKeyStore(d.Config.KeyStore, keystore.StandardScryptN, keystore.StandardScryptP)
 	d.Account = accounts.Account{Address: common.HexToAddress(d.Config.From)}
 
@@ -75,7 +75,7 @@ func (d *DeployHandle) Unlock() {
 	}
 }
 
-func (d *DeployHandle) MakeAuth(ctx context.Context, value int64) *bind.TransactOpts {
+func (d *Handle) MakeAuth(ctx context.Context, value int64) *bind.TransactOpts {
 	nonce, err := d.Client.PendingNonceAt(ctx, d.Account.Address)
 	if err != nil {
 		logger.FatalError("Fatal to get nonce: %s", err)
@@ -101,8 +101,8 @@ func (d *DeployHandle) MakeAuth(ctx context.Context, value int64) *bind.Transact
 	return auth
 }
 
-func (d *DeployHandle) PromptConfirm() {
-	logger.Info("? Confirm to deploy the contract ? [y/N]")
+func (d *Handle) PromptConfirm() {
+	logger.Info("? Confirm to deploy the contract on %v(chainID = %v)? [y/N]", d.Config.ChainName, d.Config.ChainId)
 
 	reader := bufio.NewReader(os.Stdin)
 	data, _, _ := reader.ReadLine()
@@ -116,7 +116,7 @@ func (d *DeployHandle) PromptConfirm() {
 	}
 }
 
-func (d *DeployHandle) EstimateGas(ctx context.Context, auth *bind.TransactOpts) {
+func (d *Handle) EstimateGas(ctx context.Context, auth *bind.TransactOpts) {
 	estimateGas, err := d.Client.EstimateGas(ctx, ethereum.CallMsg{
 		From:     auth.From,
 		To:       nil,
@@ -141,7 +141,7 @@ func (d *DeployHandle) EstimateGas(ctx context.Context, auth *bind.TransactOpts)
 
 }
 
-func (d *DeployHandle) DeployContract() {
+func (d *Handle) DeployContract() {
 	ctx := context.Background()
 
 	//unlock account
