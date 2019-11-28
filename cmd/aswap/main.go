@@ -10,11 +10,10 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "aswap",
-	Short: "atomic swap between two different block chains which based on EVM",
+	Short: "atomic swap between two different blockchains which based on EVM",
 	Run: func(cmd *cobra.Command, args []string) {
 
 	},
-	//Args:cobra.OnlyValidArgs
 }
 
 var (
