@@ -6,6 +6,7 @@ GOTEST=$(GOCMD) test
 
 SOURCEPKG=github.com/icodezjb/atomicswap
 ASWAP_BINARY=aswap
+ASWAP_ADMIN_BINARY=aswap-admin
 
 ASWAP_GITCOMMIT=$(shell git rev-parse --short HEAD 2> /dev/null || true)
 ASWAP_BUILDTIME=$(shell date --utc --rfc-3339 ns 2> /dev/null | sed -e 's/ /T/')
@@ -20,9 +21,14 @@ all: test build
 .PHONY:build
 build:
 	$(GOBUILD) -ldflags "\
-               -X main.Commit=$(ASWAP_GITCOMMIT) \
-               -X main.BuildTime=$(ASWAP_BUILDTIME) \
+               -X $(SOURCEPKG)/cmd.Commit=$(ASWAP_GITCOMMIT) \
+               -X $(SOURCEPKG)/cmd.BuildTime=$(ASWAP_BUILDTIME) \
                " -v -o build/bin/$(ASWAP_BINARY) $(SOURCEPKG)/cmd/$(ASWAP_BINARY)
+
+	$(GOBUILD) -ldflags "\
+               -X $(SOURCEPKG)/cmd.Commit=$(ASWAP_GITCOMMIT) \
+               -X $(SOURCEPKG)/cmd.BuildTime=$(ASWAP_BUILDTIME) \
+               " -v -o build/bin/$(ASWAP_ADMIN_BINARY) $(SOURCEPKG)/cmd/$(ASWAP_ADMIN_BINARY)
 
 .PHONY:test
 test:
@@ -32,6 +38,7 @@ test:
 clean:
 	$(GOCLEAN)
 	rm -f build/bin/$(ASWAP_BINARY)
+	rm -f build/bin/$(ASWAP_ADMIN_BINARY)
 
 .PHONY:fmt
 fmt:

@@ -3,39 +3,27 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime"
 
-	"github.com/icodezjb/atomicswap/cmd/aswap-admin/deploy"
+	"github.com/icodezjb/atomicswap/cmd"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	Commit    = "unknown-commit"
-	BuildTime = "unknown-buildtime"
-
-	version = "0.2.0"
-
-	dHandle deploy.Handle
+	h cmd.Handle
 
 	rootCmd = &cobra.Command{
-		Use:   "aswap-deploy",
-		Short: "deploy atomicswap smart contract",
+		Use:   "aswap-admin",
+		Short: "deploy and stat the atomicswap contract",
 	}
 )
 
-// versionFunc holds the textual version string.
-func versionFunc() string {
-	return fmt.Sprintf(": %s\ncommit: %s\nbuild time: %s\ngolang version: %s\n",
-		version, Commit, BuildTime, runtime.Version()+" "+runtime.GOOS+"/"+runtime.GOARCH)
-}
-
 func init() {
-	rootCmd.Flags().StringVarP(
-		&dHandle.ConfigPath,
+	rootCmd.PersistentFlags().StringVarP(
+		&h.ConfigPath,
 		"config",
 		"c",
-		"./config.json",
+		"config.json",
 		"config file path",
 	)
 
@@ -75,19 +63,15 @@ config-example.json
 }
 `)
 
+	rootCmd.Example = "  aswap-admin deploy --config config.json\n" +
+		"  aswap-admin stat -c config-after-deployed.json"
 }
 
 func main() {
-	rootCmd.Version = versionFunc()
+	rootCmd.Version = cmd.VersionFunc()
 
-	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
-		dHandle.ParseConfig()
-	}
-
-	rootCmd.Run = func(cmd *cobra.Command, args []string) {
-		dHandle.Connect()
-		dHandle.DeployContract()
-	}
+	rootCmd.AddCommand(deployCmd)
+	rootCmd.AddCommand(statCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
