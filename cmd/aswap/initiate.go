@@ -1,12 +1,13 @@
 package main
 
 import (
-	"fmt"
+	"math/big"
 	"time"
 
 	util "github.com/icodezjb/atomicswap/contract/helper"
 	"github.com/icodezjb/atomicswap/logger"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
@@ -48,15 +49,13 @@ var initiateCmd = &cobra.Command{
 		//check participant address
 		h.ValidateAddress(participant)
 
-		timeLock := fmt.Sprintf("%x", time.Now().Unix()+lock48Hour)
+		timeLock := new(big.Int).SetInt64(time.Now().Unix() + lock48Hour)
 		hashPair := util.NewSecretHashPair()
-		hashLock := hexutil.Encode(hashPair.Hash[:])
-		logger.Event("\nSecret = %s\nSecret Hash = %s", hexutil.Encode(hashPair.Secret[:]), hashLock)
+		logger.Event("\nSecret = %s\nSecret Hash = %s", hexutil.Encode(hashPair.Secret[:]), hexutil.Encode(hashPair.Hash[:]))
 
 		// connect to chain
 		h.Connect()
 
-		// without "0x" prefix
-		h.NewContract(participant[2:], hashLock[2:], timeLock)
+		h.NewContract(common.HexToAddress(participant), amount, hashPair.Hash, timeLock)
 	},
 }
