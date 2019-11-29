@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -34,11 +35,11 @@ type Config struct {
 }
 
 type Handle struct {
-	ConfigPath string
-	Config     Config
-	client     *ethclient.Client
-	ks         *keystore.KeyStore
-	account    accounts.Account
+	ConfigPath  string
+	Config      Config
+	client      *ethclient.Client
+	ks          *keystore.KeyStore
+	fromAccount accounts.Account
 }
 
 func (h *Handle) ParseConfig() {
@@ -69,10 +70,10 @@ func (h *Handle) Connect() {
 
 func (h *Handle) unlock() {
 	h.ks = keystore.NewKeyStore(h.Config.KeyStore, keystore.StandardScryptN, keystore.StandardScryptP)
-	h.account = accounts.Account{Address: common.HexToAddress(h.Config.From)}
+	h.fromAccount = accounts.Account{Address: common.HexToAddress(h.Config.From)}
 
-	if h.ks.HasAddress(h.account.Address) {
-		err := h.ks.Unlock(h.account, h.Config.Password)
+	if h.ks.HasAddress(h.fromAccount.Address) {
+		err := h.ks.Unlock(h.fromAccount, h.Config.Password)
 		if err != nil {
 			logger.FatalError("Fatal to unlock %v", h.Config.From)
 		}
@@ -82,7 +83,7 @@ func (h *Handle) unlock() {
 }
 
 func (h *Handle) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
-	nonce, err := h.client.PendingNonceAt(ctx, h.account.Address)
+	nonce, err := h.client.PendingNonceAt(ctx, h.fromAccount.Address)
 	if err != nil {
 		logger.FatalError("Fatal to get nonce: %v", err)
 	}
@@ -92,7 +93,7 @@ func (h *Handle) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
 		logger.FatalError("Fatal to get gasPrice: %v", err)
 	}
 
-	auth, err := bind.NewKeyStoreTransactor(h.ks, h.account)
+	auth, err := bind.NewKeyStoreTransactor(h.ks, h.fromAccount)
 	if err != nil {
 		logger.FatalError("Fatal to make new keystore transactor: %v", err)
 	}
@@ -181,22 +182,25 @@ func (h *Handle) DeployContract() {
 
 	logger.Info("Deploy contract...")
 
+	input := common.FromHex(htlc.HtlcBin)
+
 	//estimate deploy contract fee
-	h.estimateGas(ctx, auth, "Deploy", common.FromHex(htlc.HtlcBin))
+	h.estimateGas(ctx, auth, "Deploy", input)
 
 	//deploy-contract prompt
 	h.promptConfirm("deploy")
 
-	address, tx, _, err := htlc.DeployHtlc(auth, h.client)
-	if err != nil {
-		logger.FatalError("Fatal to deploy contract: %v", err)
-	}
+	//build tx
+	txSigned := h.buildTx(auth, input, nil)
+
+	//send tx
+	h.sendTx(ctx, txSigned)
 
 	//update contract address
-	h.Config.Contract = address.String()
+	h.Config.Contract = crypto.CreateAddress(auth.From, txSigned.Nonce()).String()
 
-	logger.Info("contract address = %v", address.String())
-	logger.Info("transaction hash = %v", tx.Hash().String())
+	logger.Info("contract address = %v", h.Config.Contract)
+	logger.Info("transaction hash = %v", txSigned.Hash().String())
 
 	//generate config-after-deployed.json file
 	h.generate()
@@ -215,29 +219,32 @@ func (h *Handle) ValidateAddress(address string) {
 	}
 }
 
-func (h *Handle) sendTx(ctx context.Context, auth *bind.TransactOpts, data []byte) common.Hash {
-	from := new(accounts.Account)
-	from.Address = common.HexToAddress(h.Config.From)
+// Create and Sign the transaction, sign it and schedule it for execution
+func (h *Handle) buildTx(auth *bind.TransactOpts, data []byte, contract *common.Address) *types.Transaction {
+	var rawTx *types.Transaction
 
-	tx := types.NewTransaction(auth.Nonce.Uint64(),
-		common.HexToAddress(h.Config.Contract),
-		auth.Value,
-		auth.GasLimit,
-		auth.GasPrice,
-		data)
+	if contract == nil {
+		rawTx = types.NewContractCreation(auth.Nonce.Uint64(), auth.Value, auth.GasLimit, auth.GasPrice, data)
+	} else {
+		rawTx = types.NewTransaction(auth.Nonce.Uint64(), *contract, auth.Value, auth.GasLimit, auth.GasPrice, data)
+	}
 
-	txSigned, err := h.ks.SignTxWithPassphrase(*from, h.Config.Password, tx, h.Config.ChainId)
+	txSigned, err := h.ks.SignTxWithPassphrase(h.fromAccount, h.Config.Password, rawTx, h.Config.ChainId)
 	if err != nil {
 		logger.FatalError("Fatal to sign tx %v: %v", h.Config.From, err)
 	}
 
-	txHash := txSigned.Hash()
-	err = h.client.SendTransaction(ctx, txSigned)
+	return txSigned
+}
+
+func (h *Handle) sendTx(ctx context.Context, txSigned *types.Transaction) {
+	from := new(accounts.Account)
+	from.Address = common.HexToAddress(h.Config.From)
+
+	err := h.client.SendTransaction(ctx, txSigned)
 	if err != nil {
 		logger.FatalError("Fatal to send tx: %v", err)
 	}
-
-	return txHash
 }
 
 func (h *Handle) NewContract(participant common.Address, amount int64, hashLock [32]byte, timeLock *big.Int) {
@@ -266,7 +273,12 @@ func (h *Handle) NewContract(participant common.Address, amount int64, hashLock 
 	//call-contract prompt
 	h.promptConfirm("call")
 
-	txHash := h.sendTx(ctx, auth, input)
+	//build tx
+	contract := common.HexToAddress(h.Config.Contract)
+	txSigned := h.buildTx(auth, input, &contract)
 
-	logger.Info("initiate tx: %v", txHash.String())
+	//send tx
+	h.sendTx(ctx, txSigned)
+
+	logger.Info("initiate tx: %v", txSigned.Hash().String())
 }
