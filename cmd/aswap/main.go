@@ -5,8 +5,11 @@ import (
 	"os"
 
 	"github.com/icodezjb/atomicswap/cmd"
+
 	"github.com/spf13/cobra"
 )
+
+const lock48Hour = 48 * 60 * 60
 
 var (
 	h cmd.Handle

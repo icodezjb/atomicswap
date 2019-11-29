@@ -3,13 +3,16 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
 	"math/big"
 	"os"
+	"regexp"
 	"strings"
 
 	htlc "github.com/icodezjb/atomicswap/contract"
+	util "github.com/icodezjb/atomicswap/contract/helper"
 	"github.com/icodezjb/atomicswap/logger"
 
 	"github.com/ethereum/go-ethereum"
@@ -17,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -32,10 +36,11 @@ type Config struct {
 
 type Handle struct {
 	ConfigPath string
-	config     Config
+	Config     Config
 	client     *ethclient.Client
 	ks         *keystore.KeyStore
 	account    accounts.Account
+	htlc       *htlc.Htlc
 }
 
 func (h *Handle) ParseConfig() {
@@ -51,13 +56,13 @@ func (h *Handle) ParseConfig() {
 		logger.FatalError("Fatal to read config file (%s): %v", h.ConfigPath, err)
 	}
 
-	if err := json.Unmarshal(configStr, &h.config); err != nil {
+	if err := json.Unmarshal(configStr, &h.Config); err != nil {
 		logger.FatalError("Fatal to parse config file (%s): %v", h.ConfigPath, err)
 	}
 }
 
 func (h *Handle) Connect() {
-	client, err := ethclient.Dial(h.config.Url)
+	client, err := ethclient.Dial(h.Config.Url)
 	if err != nil {
 		logger.FatalError("Fatal to connect server: %v", err)
 	}
@@ -65,16 +70,16 @@ func (h *Handle) Connect() {
 }
 
 func (h *Handle) unlock() {
-	h.ks = keystore.NewKeyStore(h.config.KeyStore, keystore.StandardScryptN, keystore.StandardScryptP)
-	h.account = accounts.Account{Address: common.HexToAddress(h.config.From)}
+	h.ks = keystore.NewKeyStore(h.Config.KeyStore, keystore.StandardScryptN, keystore.StandardScryptP)
+	h.account = accounts.Account{Address: common.HexToAddress(h.Config.From)}
 
 	if h.ks.HasAddress(h.account.Address) {
-		err := h.ks.Unlock(h.account, h.config.Password)
+		err := h.ks.Unlock(h.account, h.Config.Password)
 		if err != nil {
-			logger.FatalError("Fatal to unlock %v", h.config.From)
+			logger.FatalError("Fatal to unlock %v", h.Config.From)
 		}
 	} else {
-		logger.FatalError("Fatal to find %v in %v keystore (%v)", h.config.From, h.config.KeyStore, h.ks.Accounts())
+		logger.FatalError("Fatal to find %v in %v keystore (%v)", h.Config.From, h.Config.KeyStore, h.ks.Accounts())
 	}
 }
 
@@ -104,8 +109,8 @@ func (h *Handle) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
 	return auth
 }
 
-func (h *Handle) promptConfirm() {
-	logger.Info("? Confirm to deploy the contract on %v(chainID = %v)? [y/N]", h.config.ChainName, h.config.ChainId)
+func (h *Handle) promptConfirm(prefix string) {
+	logger.Info("? Confirm to %v the contract on %v(chainID = %v)? [y/N]", prefix, h.Config.ChainName, h.Config.ChainId)
 
 	reader := bufio.NewReader(os.Stdin)
 	data, _, _ := reader.ReadLine()
@@ -119,7 +124,7 @@ func (h *Handle) promptConfirm() {
 	}
 }
 
-func (h *Handle) estimateGas(ctx context.Context, auth *bind.TransactOpts) {
+func (h *Handle) estimateGas(ctx context.Context, auth *bind.TransactOpts, txType string) {
 	estimateGas, err := h.client.EstimateGas(ctx, ethereum.CallMsg{
 		From:     auth.From,
 		To:       nil,
@@ -140,7 +145,7 @@ func (h *Handle) estimateGas(ctx context.Context, auth *bind.TransactOpts) {
 	}
 
 	logger.Info("from = %v, balance = %v", auth.From.String(), balance)
-	logger.Info("contract fee = gas(%v) * gasPrice(%v) = %v", estimateGas, auth.GasPrice.String(), feeByWei)
+	logger.Info("%v fee = gas(%v) * gasPrice(%v) = %v", txType, estimateGas, auth.GasPrice.String(), feeByWei)
 
 }
 
@@ -155,7 +160,7 @@ func (h *Handle) generate() {
 	enc := json.NewEncoder(replacement)
 	enc.SetIndent("", "    ")
 
-	if err = enc.Encode(h.config); err != nil {
+	if err = enc.Encode(h.Config); err != nil {
 		logger.FatalError("Fatal to encode config: %v", err)
 	}
 }
@@ -171,10 +176,10 @@ func (h *Handle) DeployContract() {
 	logger.Info("Deploy contract...")
 
 	//estimate deploy contract fee
-	h.estimateGas(ctx, auth)
+	h.estimateGas(ctx, auth, "contract")
 
 	//deploy-contract prompt
-	h.promptConfirm()
+	h.promptConfirm("deploy")
 
 	address, tx, _, err := htlc.DeployHtlc(auth, h.client)
 	if err != nil {
@@ -182,7 +187,7 @@ func (h *Handle) DeployContract() {
 	}
 
 	//update contract address
-	h.config.Contract = address.String()
+	h.Config.Contract = address.String()
 
 	logger.Info("contract address = %v", address.String())
 	logger.Info("transaction hash = %v", tx.Hash().String())
@@ -193,4 +198,78 @@ func (h *Handle) DeployContract() {
 
 func (h *Handle) StatContract() {
 	//TODO
+}
+
+func (h *Handle) ValidateAddress(address string) {
+	valid := regexp.MustCompile("^0x[0-9a-fA-F]{40}$").MatchString(address)
+	switch valid {
+	case false:
+		logger.FatalError("Fatal to validate address: %v", address)
+	default:
+	}
+}
+
+func (h *Handle) LoadContract(contractAddress string) {
+	logger.Info("Initiate contract...")
+
+	instance, err := htlc.NewHtlc(common.HexToAddress(contractAddress), h.client)
+	if err != nil {
+		logger.FatalError("Failed to load contract: %s", err)
+	}
+
+	h.htlc = instance
+	logger.Info("contract at %s is loaded", contractAddress)
+}
+
+func (h *Handle) sendTx(ctx context.Context, auth *bind.TransactOpts, data []byte) common.Hash {
+	from := new(accounts.Account)
+	from.Address = common.HexToAddress(h.Config.From)
+
+	tx := types.NewTransaction(auth.Nonce.Uint64(),
+		common.HexToAddress(h.Config.Contract),
+		auth.Value,
+		auth.GasLimit,
+		auth.GasPrice,
+		data)
+
+	txSigned, err := h.ks.SignTxWithPassphrase(*from, h.Config.Password, tx, h.Config.ChainId)
+	if err != nil {
+		logger.FatalError("Fatal to sign tx %v: %v", h.Config.From, err)
+	}
+
+	txHash := txSigned.Hash()
+	err = h.client.SendTransaction(context.Background(), txSigned)
+	if err != nil {
+		logger.FatalError("Fatal to send tx: %v", err)
+	}
+
+	return txHash
+}
+
+func (h *Handle) NewContract(participant string, hashLock string, timeLock string) {
+	ctx := context.Background()
+	//unlock account
+	h.unlock()
+
+	auth := h.makeAuth(ctx, 0)
+
+	logger.Info("Call NewContract ...")
+
+	//estimate call contract fee
+	h.estimateGas(ctx, auth, "contract")
+
+	//call-contract prompt
+	h.promptConfirm("call")
+
+	//NewContract function signature + participant addr + hashlock + timelock
+	dataStr := "335ef5bd" + util.PadTo32Bytes(participant) + util.PadTo32Bytes(hashLock) + util.PadTo32Bytes(timeLock)
+
+	data, err := hex.DecodeString(dataStr)
+	if err != nil {
+		logger.FatalError("Fatal to make data call contract: %v", err)
+	}
+
+	txHash := h.sendTx(ctx, auth, data)
+
+	logger.Info("initiate tx: %v", txHash.String())
 }
