@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	htlc "github.com/icodezjb/atomicswap/contract"
 	"github.com/icodezjb/atomicswap/logger"
@@ -19,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -190,11 +192,8 @@ func (h *Handle) DeployContract() {
 	//deploy-contract prompt
 	h.promptConfirm("deploy")
 
-	//build tx
-	txSigned := h.buildTx(auth, input, nil)
-
 	//send tx
-	h.sendTx(ctx, txSigned)
+	txSigned := h.sendTx(ctx, auth, input, nil)
 
 	//update contract address
 	h.Config.Contract = crypto.CreateAddress(auth.From, txSigned.Nonce()).String()
@@ -219,32 +218,28 @@ func (h *Handle) ValidateAddress(address string) {
 	}
 }
 
-// Create and Sign the transaction, sign it and schedule it for execution
-func (h *Handle) buildTx(auth *bind.TransactOpts, data []byte, contract *common.Address) *types.Transaction {
+func (h *Handle) sendTx(ctx context.Context, auth *bind.TransactOpts, data []byte, contract *common.Address) *types.Transaction {
 	var rawTx *types.Transaction
 
+	// Create and Sign the transaction, sign it and schedule it for execution
 	if contract == nil {
 		rawTx = types.NewContractCreation(auth.Nonce.Uint64(), auth.Value, auth.GasLimit, auth.GasPrice, data)
 	} else {
 		rawTx = types.NewTransaction(auth.Nonce.Uint64(), *contract, auth.Value, auth.GasLimit, auth.GasPrice, data)
 	}
-
 	txSigned, err := h.ks.SignTxWithPassphrase(h.fromAccount, h.Config.Password, rawTx, h.Config.ChainId)
 	if err != nil {
 		logger.FatalError("Fatal to sign tx %v: %v", h.Config.From, err)
 	}
 
-	return txSigned
-}
-
-func (h *Handle) sendTx(ctx context.Context, txSigned *types.Transaction) {
 	from := new(accounts.Account)
 	from.Address = common.HexToAddress(h.Config.From)
 
-	err := h.client.SendTransaction(ctx, txSigned)
+	err = h.client.SendTransaction(ctx, txSigned)
 	if err != nil {
 		logger.FatalError("Fatal to send tx: %v", err)
 	}
+	return txSigned
 }
 
 func (h *Handle) NewContract(participant common.Address, amount int64, hashLock [32]byte, timeLock *big.Int) {
@@ -273,12 +268,42 @@ func (h *Handle) NewContract(participant common.Address, amount int64, hashLock 
 	//call-contract prompt
 	h.promptConfirm("call")
 
-	//build tx
-	contract := common.HexToAddress(h.Config.Contract)
-	txSigned := h.buildTx(auth, input, &contract)
-
 	//send tx
-	h.sendTx(ctx, txSigned)
+	contract := common.HexToAddress(h.Config.Contract)
+	txSigned := h.sendTx(ctx, auth, input, &contract)
 
-	logger.Info("initiate tx: %v", txSigned.Hash().String())
+	logger.Info("initiate txid: %v\n", txSigned.Hash().String())
+}
+
+func (h *Handle) GetContractId(initiateTx common.Hash) {
+	logger.Info("initiate txid: %v\n", initiateTx.String())
+
+	receipt, err := h.client.TransactionReceipt(context.Background(), initiateTx)
+	if err != nil {
+		logger.FatalError("Failed to get tx %v receipt: %v", initiateTx.String(), err)
+	}
+
+	var logHTLCEvent htlc.HtlcLogHTLCNew
+	parsedABI, err := abi.JSON(strings.NewReader(htlc.HtlcABI))
+	if err != nil {
+		logger.FatalError("Fatal to parse HtlcABI: %v", err)
+	}
+	if err := parsedABI.Unpack(&logHTLCEvent, "LogHTLCNew", receipt.Logs[0].Data); err != nil {
+		logger.FatalError("Failed to unpack log data for LogHTLCNew: %v", err)
+	}
+
+	if receipt.Logs == nil {
+		logger.FatalError("initiateTx receipt.Logs == nil, receipt.Status = %v", receipt.Status)
+	}
+
+	logHTLCEvent.ContractId = receipt.Logs[0].Topics[1]
+	logHTLCEvent.Sender = common.HexToAddress(receipt.Logs[0].Topics[2].Hex())
+	logHTLCEvent.Receiver = common.HexToAddress(receipt.Logs[0].Topics[3].Hex())
+
+	logger.Info("ContractId = %s", hexutil.Encode(logHTLCEvent.ContractId[:]))
+	logger.Info("Sender     = %s", logHTLCEvent.Sender.String())
+	logger.Info("Receiver   = %s", logHTLCEvent.Receiver.String())
+	logger.Info("Amount     = %s", logHTLCEvent.Amount)
+	logger.Info("TimeLock   = %s (Unix:%s)", time.Unix(logHTLCEvent.Timelock.Int64(), 0).Format(time.RFC3339), logHTLCEvent.Timelock)
+	logger.Info("SecretHash = %s", hexutil.Encode(logHTLCEvent.Hashlock[:]))
 }

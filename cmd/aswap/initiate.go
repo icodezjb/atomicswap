@@ -53,7 +53,7 @@ var initiateCmd = &cobra.Command{
 		hashPair := util.NewSecretHashPair()
 		logger.Event("\nSecret = %s\nSecret Hash = %s", hexutil.Encode(hashPair.Secret[:]), hexutil.Encode(hashPair.Hash[:]))
 
-		// connect to chain
+		//connect to chain
 		h.Connect()
 
 		h.NewContract(common.HexToAddress(participant), amount, hashPair.Hash, timeLock)

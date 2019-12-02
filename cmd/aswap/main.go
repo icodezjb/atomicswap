@@ -71,6 +71,7 @@ func main() {
 	rootCmd.Version = cmd.VersionFunc()
 
 	rootCmd.AddCommand(initiateCmd)
+	rootCmd.AddCommand(getContractIdCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
