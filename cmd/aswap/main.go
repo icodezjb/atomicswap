@@ -71,6 +71,7 @@ func main() {
 	rootCmd.Version = cmd.VersionFunc()
 
 	rootCmd.AddCommand(initiateCmd)
+	rootCmd.AddCommand(participantCmd)
 	rootCmd.AddCommand(getContractIdCmd)
 	rootCmd.AddCommand(auditContractCmd)
 

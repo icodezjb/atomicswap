@@ -272,11 +272,11 @@ func (h *Handle) NewContract(participant common.Address, amount int64, hashLock 
 	contract := common.HexToAddress(h.Config.Contract)
 	txSigned := h.sendTx(ctx, auth, input, &contract)
 
-	logger.Info("initiate txid: %v\n", txSigned.Hash().String())
+	logger.Info("%v(%v) txid: %v\n", h.Config.ChainName, h.Config.ChainId, txSigned.Hash().String())
 }
 
 func (h *Handle) GetContractId(initiateTx common.Hash) {
-	logger.Info("initiate txid: %v\n", initiateTx.String())
+	logger.Info("%v(%v) txid: %v", h.Config.ChainName, h.Config.ChainId, initiateTx.String())
 	logger.Info("contract address: %v\n", h.Config.Contract)
 
 	receipt, err := h.client.TransactionReceipt(context.Background(), initiateTx)
@@ -305,7 +305,7 @@ func (h *Handle) GetContractId(initiateTx common.Hash) {
 	logger.Info("Sender     = %s", logHTLCEvent.Sender.String())
 	logger.Info("Receiver   = %s", logHTLCEvent.Receiver.String())
 	logger.Info("Amount     = %s", logHTLCEvent.Amount)
-	logger.Info("TimeLock   = %s (Unix:%s)", time.Unix(logHTLCEvent.Timelock.Int64(), 0).Format(time.RFC3339), logHTLCEvent.Timelock)
+	logger.Info("TimeLock   = %s (%s)", logHTLCEvent.Timelock, time.Unix(logHTLCEvent.Timelock.Int64(), 0).Format(time.RFC3339))
 	logger.Info("SecretHash = %s", hexutil.Encode(logHTLCEvent.Hashlock[:]))
 }
 

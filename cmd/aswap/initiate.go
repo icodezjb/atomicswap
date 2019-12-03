@@ -21,7 +21,7 @@ func init() {
 		"participant address")
 
 	initiateCmd.Flags().Int64VarP(
-		&amount,
+		&initiateAmount,
 		"amount",
 		"a",
 		-1,
@@ -32,8 +32,8 @@ func init() {
 }
 
 var (
-	participant string
-	amount      int64
+	participant    string
+	initiateAmount int64
 )
 
 var initiateCmd = &cobra.Command{
@@ -56,6 +56,6 @@ var initiateCmd = &cobra.Command{
 		//connect to chain
 		h.Connect()
 
-		h.NewContract(common.HexToAddress(participant), amount, hashPair.Hash, timeLock)
+		h.NewContract(common.HexToAddress(participant), initiateAmount, hashPair.Hash, timeLock)
 	},
 }
