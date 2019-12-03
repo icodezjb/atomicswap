@@ -277,6 +277,7 @@ func (h *Handle) NewContract(participant common.Address, amount int64, hashLock 
 
 func (h *Handle) GetContractId(initiateTx common.Hash) {
 	logger.Info("initiate txid: %v\n", initiateTx.String())
+	logger.Info("contract address: %v\n", h.Config.Contract)
 
 	receipt, err := h.client.TransactionReceipt(context.Background(), initiateTx)
 	if err != nil {
@@ -306,4 +307,69 @@ func (h *Handle) GetContractId(initiateTx common.Hash) {
 	logger.Info("Amount     = %s", logHTLCEvent.Amount)
 	logger.Info("TimeLock   = %s (Unix:%s)", time.Unix(logHTLCEvent.Timelock.Int64(), 0).Format(time.RFC3339), logHTLCEvent.Timelock)
 	logger.Info("SecretHash = %s", hexutil.Encode(logHTLCEvent.Hashlock[:]))
+}
+
+func (h *Handle) AuditContract(from common.Address, contractId common.Hash) {
+	ctx := context.Background()
+
+	logger.Info("Call getContract ...")
+	logger.Info("contract address: %v\n", h.Config.Contract)
+
+	contractDetails := new(struct {
+		Sender    common.Address
+		Receiver  common.Address
+		Amount    *big.Int
+		Hashlock  [32]byte
+		Timelock  *big.Int
+		Withdrawn bool
+		Refunded  bool
+		Preimage  [32]byte
+	})
+
+	h.auditContract(ctx, contractDetails, "getContract", from, contractId)
+
+	logger.Info("Sender     = %s", contractDetails.Sender.String())
+	logger.Info("Receiver   = %s", contractDetails.Receiver.String())
+	logger.Info("Amount     = %s (wei)", contractDetails.Amount)
+	logger.Info("TimeLock   = %s (%s)", contractDetails.Timelock, time.Unix(contractDetails.Timelock.Int64(), 0))
+	logger.Info("SecretHash = %s", hexutil.Encode(contractDetails.Hashlock[:]))
+	logger.Info("Withdrawn  = %v", contractDetails.Withdrawn)
+	logger.Info("Refunded   = %v", contractDetails.Refunded)
+	logger.Info("Secret     = %s", hexutil.Encode(contractDetails.Preimage[:]))
+}
+
+func (h *Handle) auditContract(ctx context.Context, result interface{}, method string, from common.Address, contractId common.Hash) {
+	parsedABI, err := abi.JSON(strings.NewReader(htlc.HtlcABI))
+	if err != nil {
+		logger.FatalError("Fatal to parse HtlcABI: %v", err)
+	}
+
+	input, err := parsedABI.Pack(method, contractId)
+	if err != nil {
+		logger.FatalError("Fatal to pack %v: %v", method, err)
+	}
+
+	//Call
+	contract := common.HexToAddress(h.Config.Contract)
+	msg := ethereum.CallMsg{From: from, To: &contract, Data: input}
+	opts := bind.CallOpts{From: from}
+	var output []byte
+
+	output, err = h.client.CallContract(ctx, msg, opts.BlockNumber)
+	if err == nil && len(output) == 0 {
+		// Make sure we have a contract to operate on, and bail out otherwise.
+		if code, err := h.client.CodeAt(ctx, contract, opts.BlockNumber); err != nil {
+			logger.FatalError("Fatal to call CodeAt: %v", err)
+		} else if len(code) == 0 {
+			logger.FatalError("no contract code at given address")
+		}
+	}
+
+	if err != nil {
+		logger.FatalError("Fatal to call CallContract: %v", err)
+	}
+
+	if err = parsedABI.Unpack(result, method, output); err != nil {
+		logger.FatalError("Fatal to unpack result of contract call: %v", err)
+	}
 }

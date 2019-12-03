@@ -72,6 +72,7 @@ func main() {
 
 	rootCmd.AddCommand(initiateCmd)
 	rootCmd.AddCommand(getContractIdCmd)
+	rootCmd.AddCommand(auditContractCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

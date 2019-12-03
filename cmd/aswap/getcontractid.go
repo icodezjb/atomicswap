@@ -8,7 +8,7 @@ import (
 func init() {
 	getContractIdCmd.Flags().StringVar(
 		&initiateTxid,
-		"id",
+		"txid",
 		"",
 		"the initiate txid")
 }
