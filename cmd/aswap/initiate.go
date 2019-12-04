@@ -56,6 +56,9 @@ var initiateCmd = &cobra.Command{
 		//connect to chain
 		h.Connect()
 
+		//Unlock account
+		h.Unlock()
+
 		h.NewContract(common.HexToAddress(participant), initiateAmount, hashPair.Hash, timeLock)
 	},
 }

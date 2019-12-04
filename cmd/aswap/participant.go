@@ -70,6 +70,9 @@ var participantCmd = &cobra.Command{
 		//connect to chain
 		h.Connect()
 
+		//Unlock account
+		h.Unlock()
+
 		h.NewContract(common.HexToAddress(initiator), participateAmount, secretHash, timeLock)
 	},
 }

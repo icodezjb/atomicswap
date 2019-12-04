@@ -37,6 +37,9 @@ var redeemCmd = &cobra.Command{
 		//connect to chain
 		h.Connect()
 
+		//Unlock account
+		h.Unlock()
+
 		contractId := common.HexToHash(contractId)
 		secret := common.HexToHash(secret)
 
