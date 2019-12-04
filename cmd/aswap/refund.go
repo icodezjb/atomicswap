@@ -6,7 +6,7 @@ import (
 )
 
 func init() {
-	auditContractCmd.Flags().StringVar(
+	refundCmd.Flags().StringVar(
 		&contractId,
 		"id",
 		"",
@@ -15,15 +15,21 @@ func init() {
 	_ = auditContractCmd.MarkFlagRequired("id")
 }
 
-var auditContractCmd = &cobra.Command{
-	Use:   "auditcontract --id <contractId>",
-	Short: "get the atomicswap pair details with the specified contractId",
+var refundCmd = &cobra.Command{
+	Use:   "refund --id <contractId>",
+	Short: "refund from the atomicswap pair",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		h.ParseConfig()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		//check contract address
+		h.ValidateAddress(h.Config.Contract)
+
+		//connect to chain
 		h.Connect()
-		h.ValidateAddress(h.Config.From)
-		h.AuditContract(common.HexToAddress(h.Config.From), common.HexToHash(contractId))
+
+		contractId := common.HexToHash(contractId)
+
+		h.Refund(contractId)
 	},
 }

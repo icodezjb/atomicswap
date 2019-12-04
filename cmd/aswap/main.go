@@ -18,6 +18,9 @@ var (
 		Use:   "aswap",
 		Short: "atomic swap between two different blockchains which based on EVM",
 	}
+
+	//auditcontractCmd, redeemCmd, refundCmd
+	contractId string
 )
 
 func init() {
@@ -74,6 +77,8 @@ func main() {
 	rootCmd.AddCommand(participantCmd)
 	rootCmd.AddCommand(getContractIdCmd)
 	rootCmd.AddCommand(auditContractCmd)
+	rootCmd.AddCommand(redeemCmd)
+	rootCmd.AddCommand(refundCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

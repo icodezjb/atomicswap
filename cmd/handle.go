@@ -373,3 +373,63 @@ func (h *Handle) auditContract(ctx context.Context, result interface{}, method s
 		logger.FatalError("Fatal to unpack result of contract call: %v", err)
 	}
 }
+
+func (h *Handle) Redeem(contractId common.Hash, secret common.Hash) {
+	ctx := context.Background()
+
+	//unlock account
+	h.unlock()
+
+	auth := h.makeAuth(ctx, 0)
+
+	logger.Info("Call Withdraw ...")
+
+	parsedABI, err := abi.JSON(strings.NewReader(htlc.HtlcABI))
+	if err != nil {
+		logger.FatalError("Fatal to parse HtlcABI: %v", err)
+	}
+
+	input, err := parsedABI.Pack("withdraw", contractId, secret)
+	if err != nil {
+		logger.FatalError("Fatal to pack newContract: %v", err)
+	}
+
+	//estimate call contract fee
+	h.estimateGas(ctx, auth, "Call", input)
+
+	//call-contract prompt
+	h.promptConfirm("call")
+
+	//send tx
+	contract := common.HexToAddress(h.Config.Contract)
+	txSigned := h.sendTx(ctx, auth, input, &contract)
+
+	logger.Info("%v(%v) txid: %v\n", h.Config.ChainName, h.Config.ChainId, txSigned.Hash().String())
+}
+
+func (h *Handle) Refund(contractId common.Hash) {
+	ctx := context.Background()
+
+	//unlock account
+	h.unlock()
+
+	auth := h.makeAuth(ctx, 0)
+
+	logger.Info("Call Withdraw ...")
+
+	parsedABI, err := abi.JSON(strings.NewReader(htlc.HtlcABI))
+	if err != nil {
+		logger.FatalError("Fatal to parse HtlcABI: %v", err)
+	}
+
+	input, err := parsedABI.Pack("refund", contractId)
+	if err != nil {
+		logger.FatalError("Fatal to pack newContract: %v", err)
+	}
+
+	//send tx
+	contract := common.HexToAddress(h.Config.Contract)
+	txSigned := h.sendTx(ctx, auth, input, &contract)
+
+	logger.Info("%v(%v) txid: %v\n", h.Config.ChainName, h.Config.ChainId, txSigned.Hash().String())
+}
