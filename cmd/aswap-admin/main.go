@@ -55,13 +55,15 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.{{e
 
 config-example.json 
 {
-  "chainId": 1,
-  "chainName": "eth",
-  "url": "http://127.0.0.1:7545",
-  "from": "0xffd79941b7085805f48ded97298694c6bb950e2c",
-  "keystoreDir": "./",
-  "password": "password",
-  "contract": ""
+    "chainID": 110,
+    "chainName": "ETH1",
+    "url": "http://127.0.0.1:8545",
+    "otherChainID": 111,
+    "otherChainName": "ETH2",
+    "otherURL": "http://127.0.0.1:7545",
+    "account": "0xffd79941b7085805f48ded97298694c6bb950e2c",
+    "keystoreDir": "./",
+    "password": "password"
 }
 `)
 
