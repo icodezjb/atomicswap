@@ -29,16 +29,27 @@ type HashTimeLockContract interface {
 	Refund(contractId common.Hash)
 }
 
+type chain struct {
+	ID       *big.Int
+	Name     string
+	URL      string
+	Contract string
+}
+
 type Config struct {
-	ChainId   *big.Int `json:"chainId"`
-	ChainName string   `json:"chainName"`
-	Url       string   `json:"url"`
-	From      string   `json:"from"`
-	KeyStore  string   `json:"keystoreDir"`
-	Password  string   `json:"password"`
-	Contract  string   `json:"contract"`
-	client    *ethclient.Client
-	ks        *keystore.KeyStore
+	ChainID        *big.Int `json:"chainID"`
+	ChainName      string   `json:"chainName"`
+	URL            string   `json:"url"`
+	OtherChainID   *big.Int `json:"otherChainID"`
+	OtherChainName string   `json:"otherChainName"`
+	OtherURL       string   `json:"otherURL"`
+	Account        string   `json:"account"`
+	Contract       string   `json:"contract"`
+	KeyStore       string   `json:"keystoreDir"`
+	Password       string   `json:"password"`
+	Chain          *chain   `json:"-"`
+	client         *ethclient.Client
+	ks             *keystore.KeyStore
 }
 
 func (c *Config) ParseConfig(cfgPath string) {
@@ -59,25 +70,42 @@ func (c *Config) ParseConfig(cfgPath string) {
 	}
 }
 
-func (c *Config) Connect() {
-	client, err := ethclient.Dial(c.Url)
+func (c *Config) Connect(otherContract string) {
+	c.Chain = &chain{
+		ID:       c.ChainID,
+		Name:     c.ChainName,
+		URL:      c.URL,
+		Contract: c.Contract,
+	}
+
+	if otherContract != "" {
+		c.Chain = &chain{
+			ID:       c.OtherChainID,
+			Name:     c.OtherChainName,
+			URL:      c.OtherURL,
+			Contract: otherContract,
+		}
+	}
+
+	client, err := ethclient.Dial(c.Chain.URL)
 	if err != nil {
 		logger.FatalError("Fatal to connect server: %v", err)
 	}
+
 	c.client = client
 }
 
 func (c *Config) Unlock() {
 	c.ks = keystore.NewKeyStore(c.KeyStore, keystore.StandardScryptN, keystore.StandardScryptP)
-	fromAccount := accounts.Account{Address: common.HexToAddress(c.From)}
+	fromAccount := accounts.Account{Address: common.HexToAddress(c.Account)}
 
 	if c.ks.HasAddress(fromAccount.Address) {
 		err := c.ks.Unlock(fromAccount, c.Password)
 		if err != nil {
-			logger.FatalError("Fatal to unlock %v", c.From)
+			logger.FatalError("Fatal to unlock %v", c.Account)
 		}
 	} else {
-		logger.FatalError("Fatal to find %v in %v keystore (%v)", c.From, c.KeyStore, c.ks.Accounts())
+		logger.FatalError("Fatal to find %v in %v keystore (%v)", c.Account, c.KeyStore, c.ks.Accounts())
 	}
 }
 
@@ -90,8 +118,8 @@ func (c *Config) ValidateAddress(address string) {
 	}
 }
 
-func (c *Config) update() {
-	replacement, err := os.OpenFile("config-after-deployed.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+func (c *Config) rotate(cfgPath string) {
+	replacement, err := os.OpenFile(cfgPath+".new", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 	defer replacement.Close() //nolint:staticcheck
 
 	if err != nil {
@@ -104,10 +132,15 @@ func (c *Config) update() {
 	if err = enc.Encode(c); err != nil {
 		logger.FatalError("Fatal to encode config: %v", err)
 	}
+
+	// Replace the live config with the newly generated one
+	if err = os.Rename(cfgPath+".new", cfgPath); err != nil {
+		logger.FatalError("Fatal to replace config file: %v", err)
+	}
 }
 
 func (c *Config) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
-	fromAccount := accounts.Account{Address: common.HexToAddress(c.From)}
+	fromAccount := accounts.Account{Address: common.HexToAddress(c.Account)}
 	nonce, err := c.client.PendingNonceAt(ctx, fromAccount.Address)
 	if err != nil {
 		logger.FatalError("Fatal to get nonce: %v", err)
@@ -134,7 +167,7 @@ func (c *Config) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
 }
 
 func (c *Config) promptConfirm(prefix string) {
-	logger.Info("? Confirm to %v the contract on %v(chainID = %v)? [y/N]", prefix, c.ChainName, c.ChainId)
+	logger.Info("? Confirm to %v the contract on %v(chainID = %v)? [y/N]", prefix, c.Chain.Name, c.Chain.ID)
 
 	reader := bufio.NewReader(os.Stdin)
 	data, _, _ := reader.ReadLine()

@@ -19,8 +19,10 @@ var (
 		Short: "atomic swap between two different blockchains which based on EVM",
 	}
 
-	//auditcontractCmd, redeemCmd, refundCmd
+	//auditContractCmd, redeemCmd
 	contractId string
+	//auditContractCmd, redeemCmd, getContractIdCmd
+	otherContract string
 )
 
 func init() {
@@ -60,13 +62,15 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.{{e
 
 config-example.json 
 {
-  "chainId": 1,
-  "chainName": "eth",
-  "url": "http://127.0.0.1:7545",
-  "from": "0xffd79941b7085805f48ded97298694c6bb950e2c",
-  "keystoreDir": "./",
-  "password": "password",
-  "contract": "0xA63684e9aCfb86330Ce7e8001C6aAa3e23DD6Fe7"
+    "chainID": 110,
+    "chainName": "ETH1",
+    "url": "http://127.0.0.1:8545",
+    "otherChainID": 111,
+    "otherChainName": "ETH2",
+    "otherURL": "http://127.0.0.1:7545",
+    "account": "0xffd79941b7085805f48ded97298694c6bb950e2c",
+    "keystoreDir": "./",
+    "password": "password"
 }
 `)
 

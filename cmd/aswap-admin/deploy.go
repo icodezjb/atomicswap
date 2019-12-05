@@ -9,8 +9,9 @@ var deployCmd = &cobra.Command{
 		h.Config.ParseConfig(h.ConfigPath)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		h.Config.Connect()
-		h.Config.ValidateAddress(h.Config.From)
+		h.Config.Connect("")
+		h.Config.ValidateAddress(h.Config.Account)
+		h.Config.Unlock()
 		h.DeployContract()
 	},
 }

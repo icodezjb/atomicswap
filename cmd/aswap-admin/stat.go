@@ -9,7 +9,7 @@ var statCmd = &cobra.Command{
 		h.Config.ParseConfig(h.ConfigPath)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		h.Config.Connect()
+		h.Config.Connect("")
 		h.StatContract()
 	},
 }

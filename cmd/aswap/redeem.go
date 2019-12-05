@@ -18,26 +18,30 @@ func init() {
 		"",
 		"the secret of hashlock")
 
-	_ = auditContractCmd.MarkFlagRequired("id")
-	_ = auditContractCmd.MarkFlagRequired("secret")
+	redeemCmd.Flags().StringVar(
+		&otherContract,
+		"other",
+		"",
+		"contract address")
+
+	_ = redeemCmd.MarkFlagRequired("id")
+	_ = redeemCmd.MarkFlagRequired("secret")
+	_ = redeemCmd.MarkFlagRequired("other")
 }
 
 var secret string
 
 var redeemCmd = &cobra.Command{
-	Use:   "redeem --id <contractId> --secret <secret>",
-	Short: "redeem from the atomicswap pair by the secret",
+	Use:   "redeem --id <contractId> --secret <secret> --other <contract address>",
+	Short: "redeem on the other contract by the secret",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		h.Config.ParseConfig(h.ConfigPath)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		//check contract address
-		h.Config.ValidateAddress(h.Config.Contract)
+		h.Config.Connect(otherContract)
 
-		//connect to chain
-		h.Config.Connect()
+		h.Config.ValidateAddress(h.Config.Chain.Contract)
 
-		//Unlock account
 		h.Config.Unlock()
 
 		contractId := common.HexToHash(contractId)

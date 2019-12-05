@@ -67,16 +67,16 @@ func (h *Handle) sendTx(ctx context.Context, auth *bind.TransactOpts, data []byt
 		rawTx = types.NewTransaction(auth.Nonce.Uint64(), *contract, auth.Value, auth.GasLimit, auth.GasPrice, data)
 	}
 	txSigned, err := h.Config.ks.SignTxWithPassphrase(
-		accounts.Account{Address: common.HexToAddress(h.Config.From)},
+		accounts.Account{Address: common.HexToAddress(h.Config.Account)},
 		h.Config.Password,
 		rawTx,
-		h.Config.ChainId)
+		h.Config.Chain.ID)
 	if err != nil {
-		logger.FatalError("Fatal to sign tx %v: %v", h.Config.From, err)
+		logger.FatalError("Fatal to sign tx %v: %v", h.Config.Account, err)
 	}
 
 	from := new(accounts.Account)
-	from.Address = common.HexToAddress(h.Config.From)
+	from.Address = common.HexToAddress(h.Config.Account)
 
 	err = h.Config.client.SendTransaction(ctx, txSigned)
 	if err != nil {
@@ -109,8 +109,8 @@ func (h *Handle) DeployContract() {
 	logger.Info("contract address = %v", h.Config.Contract)
 	logger.Info("transaction hash = %v", txSigned.Hash().String())
 
-	//generate config-after-deployed.json file
-	h.Config.update()
+	//update config
+	h.Config.rotate(h.ConfigPath)
 }
 
 func (h *Handle) StatContract() {
@@ -144,16 +144,16 @@ func (h *Handle) NewContract(participant common.Address, amount int64, hashLock 
 	contract := common.HexToAddress(h.Config.Contract)
 	txSigned := h.sendTx(ctx, auth, input, &contract)
 
-	logger.Info("%v(%v) txid: %v\n", h.Config.ChainName, h.Config.ChainId, txSigned.Hash().String())
+	logger.Info("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 }
 
-func (h *Handle) GetContractId(initiateTx common.Hash) {
-	logger.Info("%v(%v) txid: %v", h.Config.ChainName, h.Config.ChainId, initiateTx.String())
-	logger.Info("contract address: %v\n", h.Config.Contract)
+func (h *Handle) GetContractId(txID common.Hash) {
+	logger.Info("%v(%v) txid: %v", h.Config.Chain.Name, h.Config.Chain.ID, txID.String())
+	logger.Info("contract address: %v\n", h.Config.Chain.Contract)
 
-	receipt, err := h.Config.client.TransactionReceipt(context.Background(), initiateTx)
+	receipt, err := h.Config.client.TransactionReceipt(context.Background(), txID)
 	if err != nil {
-		logger.FatalError("Failed to get tx %v receipt: %v", initiateTx.String(), err)
+		logger.FatalError("Failed to get tx %v receipt: %v", txID.String(), err)
 	}
 
 	var logHTLCEvent htlc.HtlcLogHTLCNew
@@ -185,7 +185,7 @@ func (h *Handle) AuditContract(from common.Address, contractId common.Hash) {
 	ctx := context.Background()
 
 	logger.Info("Call getContract ...")
-	logger.Info("contract address: %v\n", h.Config.Contract)
+	logger.Info("contract address: %v\n", h.Config.Chain.Contract)
 
 	contractDetails := new(struct {
 		Sender    common.Address
@@ -222,7 +222,7 @@ func (h *Handle) auditContract(ctx context.Context, result interface{}, method s
 	}
 
 	//Call
-	contract := common.HexToAddress(h.Config.Contract)
+	contract := common.HexToAddress(h.Config.Chain.Contract)
 	msg := ethereum.CallMsg{From: from, To: &contract, Data: input}
 	opts := bind.CallOpts{From: from}
 	var output []byte
@@ -270,10 +270,10 @@ func (h *Handle) Redeem(contractId common.Hash, secret common.Hash) {
 	h.Config.promptConfirm("call")
 
 	//send tx
-	contract := common.HexToAddress(h.Config.Contract)
+	contract := common.HexToAddress(h.Config.Chain.Contract)
 	txSigned := h.sendTx(ctx, auth, input, &contract)
 
-	logger.Info("%v(%v) txid: %v\n", h.Config.ChainName, h.Config.ChainId, txSigned.Hash().String())
+	logger.Info("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 }
 
 func (h *Handle) Refund(contractId common.Hash) {
@@ -294,8 +294,8 @@ func (h *Handle) Refund(contractId common.Hash) {
 	}
 
 	//send tx
-	contract := common.HexToAddress(h.Config.Contract)
+	contract := common.HexToAddress(h.Config.Chain.Contract)
 	txSigned := h.sendTx(ctx, auth, input, &contract)
 
-	logger.Info("%v(%v) txid: %v\n", h.Config.ChainName, h.Config.ChainId, txSigned.Hash().String())
+	logger.Info("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 }

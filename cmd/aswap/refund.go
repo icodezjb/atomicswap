@@ -12,7 +12,7 @@ func init() {
 		"",
 		"the contractId of the atomicswap pair")
 
-	_ = auditContractCmd.MarkFlagRequired("id")
+	_ = refundCmd.MarkFlagRequired("id")
 }
 
 var refundCmd = &cobra.Command{
@@ -26,7 +26,7 @@ var refundCmd = &cobra.Command{
 		h.Config.ValidateAddress(h.Config.Contract)
 
 		//connect to chain
-		h.Config.Connect()
+		h.Config.Connect("")
 
 		//Unlock account
 		h.Config.Unlock()

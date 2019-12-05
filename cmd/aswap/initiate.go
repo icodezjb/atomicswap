@@ -54,7 +54,7 @@ var initiateCmd = &cobra.Command{
 		logger.Event("\nSecret = %s\nSecret Hash = %s", hexutil.Encode(hashPair.Secret[:]), hexutil.Encode(hashPair.Hash[:]))
 
 		//connect to chain
-		h.Config.Connect()
+		h.Config.Connect("")
 
 		//Unlock account
 		h.Config.Unlock()

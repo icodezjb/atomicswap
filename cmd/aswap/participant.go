@@ -68,7 +68,7 @@ var participantCmd = &cobra.Command{
 
 		secretHash := common.HexToHash(hash)
 		//connect to chain
-		h.Config.Connect()
+		h.Config.Connect("")
 
 		//Unlock account
 		h.Config.Unlock()
