@@ -53,14 +53,14 @@ var participantCmd = &cobra.Command{
 	Use:   "participant --initiator <initiator address> --amount <amount> --time <unix time> --hash <secret hash>",
 	Short: "performed by the participant to create the second contract",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		h.ParseConfig()
+		h.Config.ParseConfig(h.ConfigPath)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		//check contract address
-		h.ValidateAddress(h.Config.Contract)
+		h.Config.ValidateAddress(h.Config.Contract)
 
 		//check participant address
-		h.ValidateAddress(initiator)
+		h.Config.ValidateAddress(initiator)
 
 		//half of initiator timelock
 		timeLock := new(big.Int).SetInt64(time.Now().Unix() + (untilTime-time.Now().Unix())/2)
@@ -68,10 +68,10 @@ var participantCmd = &cobra.Command{
 
 		secretHash := common.HexToHash(hash)
 		//connect to chain
-		h.Connect()
+		h.Config.Connect()
 
 		//Unlock account
-		h.Unlock()
+		h.Config.Unlock()
 
 		h.NewContract(common.HexToAddress(initiator), participateAmount, secretHash, timeLock)
 	},

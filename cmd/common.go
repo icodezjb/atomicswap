@@ -37,49 +37,51 @@ type Config struct {
 	KeyStore  string   `json:"keystoreDir"`
 	Password  string   `json:"password"`
 	Contract  string   `json:"contract"`
+	client    *ethclient.Client
+	ks        *keystore.KeyStore
 }
 
-func (h *Handle) ParseConfig() {
-	configFile, err := os.Open(h.ConfigPath)
+func (c *Config) ParseConfig(cfgPath string) {
+	configFile, err := os.Open(cfgPath)
 	defer configFile.Close() //nolint:staticcheck
 
 	if err != nil {
-		logger.FatalError("Fatal to open config file (%s): %v", h.ConfigPath, err)
+		logger.FatalError("Fatal to open config file (%s): %v", cfgPath, err)
 	}
 
 	configStr, err := ioutil.ReadAll(configFile)
 	if err != nil {
-		logger.FatalError("Fatal to read config file (%s): %v", h.ConfigPath, err)
+		logger.FatalError("Fatal to read config file (%s): %v", cfgPath, err)
 	}
 
-	if err := json.Unmarshal(configStr, &h.Config); err != nil {
-		logger.FatalError("Fatal to parse config file (%s): %v", h.ConfigPath, err)
+	if err := json.Unmarshal(configStr, c); err != nil {
+		logger.FatalError("Fatal to parse config file (%s): %v", cfgPath, err)
 	}
 }
 
-func (h *Handle) Connect() {
-	client, err := ethclient.Dial(h.Config.Url)
+func (c *Config) Connect() {
+	client, err := ethclient.Dial(c.Url)
 	if err != nil {
 		logger.FatalError("Fatal to connect server: %v", err)
 	}
-	h.client = client
+	c.client = client
 }
 
-func (h *Handle) Unlock() {
-	h.ks = keystore.NewKeyStore(h.Config.KeyStore, keystore.StandardScryptN, keystore.StandardScryptP)
-	h.fromAccount = accounts.Account{Address: common.HexToAddress(h.Config.From)}
+func (c *Config) Unlock() {
+	c.ks = keystore.NewKeyStore(c.KeyStore, keystore.StandardScryptN, keystore.StandardScryptP)
+	fromAccount := accounts.Account{Address: common.HexToAddress(c.From)}
 
-	if h.ks.HasAddress(h.fromAccount.Address) {
-		err := h.ks.Unlock(h.fromAccount, h.Config.Password)
+	if c.ks.HasAddress(fromAccount.Address) {
+		err := c.ks.Unlock(fromAccount, c.Password)
 		if err != nil {
-			logger.FatalError("Fatal to unlock %v", h.Config.From)
+			logger.FatalError("Fatal to unlock %v", c.From)
 		}
 	} else {
-		logger.FatalError("Fatal to find %v in %v keystore (%v)", h.Config.From, h.Config.KeyStore, h.ks.Accounts())
+		logger.FatalError("Fatal to find %v in %v keystore (%v)", c.From, c.KeyStore, c.ks.Accounts())
 	}
 }
 
-func (h *Handle) ValidateAddress(address string) {
+func (c *Config) ValidateAddress(address string) {
 	valid := regexp.MustCompile("^0x[0-9a-fA-F]{40}$").MatchString(address)
 	switch valid {
 	case false:
@@ -88,7 +90,7 @@ func (h *Handle) ValidateAddress(address string) {
 	}
 }
 
-func (h *Handle) update() {
+func (c *Config) update() {
 	replacement, err := os.OpenFile("config-after-deployed.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 	defer replacement.Close() //nolint:staticcheck
 
@@ -99,23 +101,24 @@ func (h *Handle) update() {
 	enc := json.NewEncoder(replacement)
 	enc.SetIndent("", "    ")
 
-	if err = enc.Encode(h.Config); err != nil {
+	if err = enc.Encode(c); err != nil {
 		logger.FatalError("Fatal to encode config: %v", err)
 	}
 }
 
-func (h *Handle) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
-	nonce, err := h.client.PendingNonceAt(ctx, h.fromAccount.Address)
+func (c *Config) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
+	fromAccount := accounts.Account{Address: common.HexToAddress(c.From)}
+	nonce, err := c.client.PendingNonceAt(ctx, fromAccount.Address)
 	if err != nil {
 		logger.FatalError("Fatal to get nonce: %v", err)
 	}
 
-	gasPrice, err := h.client.SuggestGasPrice(ctx)
+	gasPrice, err := c.client.SuggestGasPrice(ctx)
 	if err != nil {
 		logger.FatalError("Fatal to get gasPrice: %v", err)
 	}
 
-	auth, err := bind.NewKeyStoreTransactor(h.ks, h.fromAccount)
+	auth, err := bind.NewKeyStoreTransactor(c.ks, fromAccount)
 	if err != nil {
 		logger.FatalError("Fatal to make new keystore transactor: %v", err)
 	}
@@ -130,8 +133,8 @@ func (h *Handle) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
 	return auth
 }
 
-func (h *Handle) promptConfirm(prefix string) {
-	logger.Info("? Confirm to %v the contract on %v(chainID = %v)? [y/N]", prefix, h.Config.ChainName, h.Config.ChainId)
+func (c *Config) promptConfirm(prefix string) {
+	logger.Info("? Confirm to %v the contract on %v(chainID = %v)? [y/N]", prefix, c.ChainName, c.ChainId)
 
 	reader := bufio.NewReader(os.Stdin)
 	data, _, _ := reader.ReadLine()

@@ -24,6 +24,8 @@ var (
 )
 
 func init() {
+	h.Config = new(cmd.Config)
+
 	rootCmd.PersistentFlags().StringVarP(
 		&h.ConfigPath,
 		"config",

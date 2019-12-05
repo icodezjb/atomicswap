@@ -19,11 +19,11 @@ var auditContractCmd = &cobra.Command{
 	Use:   "auditcontract --id <contractId>",
 	Short: "get the atomicswap pair details with the specified contractId",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		h.ParseConfig()
+		h.Config.ParseConfig(h.ConfigPath)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		h.Connect()
-		h.ValidateAddress(h.Config.From)
+		h.Config.Connect()
+		h.Config.ValidateAddress(h.Config.From)
 		h.AuditContract(common.HexToAddress(h.Config.From), common.HexToHash(contractId))
 	},
 }

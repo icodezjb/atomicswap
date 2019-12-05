@@ -6,11 +6,11 @@ var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "deploy the atomicswap contract",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		h.ParseConfig()
+		h.Config.ParseConfig(h.ConfigPath)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		h.Connect()
-		h.ValidateAddress(h.Config.From)
+		h.Config.Connect()
+		h.Config.ValidateAddress(h.Config.From)
 		h.DeployContract()
 	},
 }

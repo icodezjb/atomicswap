@@ -28,17 +28,17 @@ var redeemCmd = &cobra.Command{
 	Use:   "redeem --id <contractId> --secret <secret>",
 	Short: "redeem from the atomicswap pair by the secret",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		h.ParseConfig()
+		h.Config.ParseConfig(h.ConfigPath)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		//check contract address
-		h.ValidateAddress(h.Config.Contract)
+		h.Config.ValidateAddress(h.Config.Contract)
 
 		//connect to chain
-		h.Connect()
+		h.Config.Connect()
 
 		//Unlock account
-		h.Unlock()
+		h.Config.Unlock()
 
 		contractId := common.HexToHash(contractId)
 		secret := common.HexToHash(secret)

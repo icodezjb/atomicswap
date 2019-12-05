@@ -19,17 +19,17 @@ var refundCmd = &cobra.Command{
 	Use:   "refund --id <contractId>",
 	Short: "refund from the atomicswap pair",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		h.ParseConfig()
+		h.Config.ParseConfig(h.ConfigPath)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		//check contract address
-		h.ValidateAddress(h.Config.Contract)
+		h.Config.ValidateAddress(h.Config.Contract)
 
 		//connect to chain
-		h.Connect()
+		h.Config.Connect()
 
 		//Unlock account
-		h.Unlock()
+		h.Config.Unlock()
 
 		contractId := common.HexToHash(contractId)
 
