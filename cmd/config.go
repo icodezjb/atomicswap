@@ -3,6 +3,8 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"io/ioutil"
 	"math/big"
@@ -50,6 +52,23 @@ type Config struct {
 	Chain          *chain   `json:"-"`
 	client         *ethclient.Client
 	ks             *keystore.KeyStore
+}
+
+type SecretHashPair struct {
+	Secret [32]byte
+	Hash   [32]byte
+}
+
+func NewSecretHashPair() *SecretHashPair {
+
+	s := new(SecretHashPair)
+	_, err := rand.Read(s.Secret[:])
+	if err != nil {
+		logger.FatalError("Fatal to generate secret: %v", err)
+	}
+	s.Hash = sha256.Sum256(s.Secret[:])
+
+	return s
 }
 
 func (c *Config) ParseConfig(cfgPath string) {

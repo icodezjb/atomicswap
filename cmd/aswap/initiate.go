@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"time"
 
-	util "github.com/icodezjb/atomicswap/contract/helper"
+	"github.com/icodezjb/atomicswap/cmd"
 	"github.com/icodezjb/atomicswap/logger"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -42,7 +42,7 @@ var initiateCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		h.Config.ParseConfig(h.ConfigPath)
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(init *cobra.Command, args []string) {
 		//check contract address
 		h.Config.ValidateAddress(h.Config.Contract)
 
@@ -50,7 +50,7 @@ var initiateCmd = &cobra.Command{
 		h.Config.ValidateAddress(participant)
 
 		timeLock := new(big.Int).SetInt64(time.Now().Unix() + lock48Hour)
-		hashPair := util.NewSecretHashPair()
+		hashPair := cmd.NewSecretHashPair()
 		logger.Event("\nSecret = %s\nSecret Hash = %s", hexutil.Encode(hashPair.Secret[:]), hexutil.Encode(hashPair.Hash[:]))
 
 		//connect to chain
