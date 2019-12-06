@@ -28,7 +28,7 @@ type HashTimeLockContract interface {
 	StatContract()
 	NewContract(participant common.Address, amount int64, hashLock [32]byte, timeLock *big.Int)
 	GetContractId(initiateTx common.Hash)
-	AuditContract(from common.Address, contractId common.Hash)
+	AuditContract(contractId common.Hash)
 	Redeem(contractId common.Hash, secret common.Hash)
 	Refund(contractId common.Hash)
 }

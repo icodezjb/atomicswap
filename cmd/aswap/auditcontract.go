@@ -30,8 +30,10 @@ var auditContractCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		h.Config.Connect(otherContract)
 
+		h.Config.ValidateAddress(h.Config.Account)
+
 		h.Config.ValidateAddress(h.Config.Chain.Contract)
 
-		h.AuditContract(common.HexToAddress(h.Config.Account), common.HexToHash(contractId))
+		h.AuditContract(common.HexToHash(contractId))
 	},
 }

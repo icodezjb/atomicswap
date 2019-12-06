@@ -198,7 +198,7 @@ func (h *Handler) GetContractId(txID common.Hash) {
 	logger.Info("SecretHash = %s", hexutil.Encode(logHTLCEvent.Hashlock[:]))
 }
 
-func (h *Handler) AuditContract(from common.Address, contractId common.Hash) {
+func (h *Handler) AuditContract(contractId common.Hash) {
 	ctx := context.Background()
 
 	logger.Info("Call getContract ...")
@@ -215,7 +215,7 @@ func (h *Handler) AuditContract(from common.Address, contractId common.Hash) {
 		Preimage  [32]byte
 	})
 
-	h.auditContract(ctx, contractDetails, "getContract", from, contractId)
+	h.auditContract(ctx, contractDetails, "getContract", contractId)
 
 	logger.Info("Sender     = %s", contractDetails.Sender.String())
 	logger.Info("Receiver   = %s", contractDetails.Receiver.String())
@@ -227,7 +227,7 @@ func (h *Handler) AuditContract(from common.Address, contractId common.Hash) {
 	logger.Info("Secret     = %s", hexutil.Encode(contractDetails.Preimage[:]))
 }
 
-func (h *Handler) auditContract(ctx context.Context, result interface{}, method string, from common.Address, contractId common.Hash) {
+func (h *Handler) auditContract(ctx context.Context, result interface{}, method string, contractId common.Hash) {
 	parsedABI, err := abi.JSON(strings.NewReader(htlc.HtlcABI))
 	if err != nil {
 		logger.FatalError("Fatal to parse HtlcABI: %v", err)
@@ -239,6 +239,7 @@ func (h *Handler) auditContract(ctx context.Context, result interface{}, method 
 	}
 
 	//Call
+	from := common.HexToAddress(h.Config.Account)
 	contract := common.HexToAddress(h.Config.Chain.Contract)
 	msg := ethereum.CallMsg{From: from, To: &contract, Data: input}
 	opts := bind.CallOpts{From: from}

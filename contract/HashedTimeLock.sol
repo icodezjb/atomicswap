@@ -14,7 +14,7 @@ pragma solidity ^0.5.0;
  *      a new HTLC and gets back a 32 byte contract id
  *  2) withdraw(contractId, preimage) - once the receiver knows the preimage of
  *      the hashlock hash they can claim the ETH with this function
- *  3) refund() - after timelock has expired and if the receiver did not 
+ *  3) refund(contractId) - after timelock has expired and if the receiver did not
  *      withdraw funds the sender / creator of the HTLC can get their ETH
  *      back with this function.
  */
