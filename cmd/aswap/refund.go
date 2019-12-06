@@ -12,12 +12,18 @@ func init() {
 		"",
 		"the contractId of the atomicswap pair")
 
+	refundCmd.Flags().StringVar(
+		&privateKey,
+		"key",
+		"",
+		"the private key of the account without '0x' prefix. if specified, the keystore will no longer be used")
+
 	_ = refundCmd.MarkFlagRequired("id")
 }
 
 var refundCmd = &cobra.Command{
-	Use:   "refund --id <contractId>",
-	Short: "refund from the atomicswap pair",
+	Use:   "refund --id <contractId> [--key <private key>]",
+	Short: "refund on the contract if there was no withdraw AND the time lock has expired",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		h.Config.ParseConfig(h.ConfigPath)
 	},
@@ -29,7 +35,7 @@ var refundCmd = &cobra.Command{
 		h.Config.Connect("")
 
 		//Unlock account
-		h.Config.Unlock()
+		h.Config.Unlock(privateKey)
 
 		contractId := common.HexToHash(contractId)
 

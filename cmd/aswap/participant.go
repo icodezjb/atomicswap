@@ -36,6 +36,12 @@ func init() {
 		"",
 		"the hash of the initiator secret")
 
+	participantCmd.Flags().StringVar(
+		&privateKey,
+		"key",
+		"",
+		"the private key of the account without '0x' prefix. if specified, the keystore will no longer be used")
+
 	_ = participantCmd.MarkFlagRequired("initiator")
 	_ = participantCmd.MarkFlagRequired("amount")
 	_ = participantCmd.MarkFlagRequired("time")
@@ -50,7 +56,7 @@ var (
 )
 
 var participantCmd = &cobra.Command{
-	Use:   "participant --initiator <initiator address> --amount <amount> --time <unix time> --hash <secret hash>",
+	Use:   "participant --initiator <initiator address> --amount <amount> --time <unix time> --hash <secret hash> [--key <private key>]",
 	Short: "performed by the participant to create the second contract",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		h.Config.ParseConfig(h.ConfigPath)
@@ -71,7 +77,7 @@ var participantCmd = &cobra.Command{
 		h.Config.Connect("")
 
 		//Unlock account
-		h.Config.Unlock()
+		h.Config.Unlock(privateKey)
 
 		h.NewContract(common.HexToAddress(initiator), participateAmount, secretHash, timeLock)
 	},

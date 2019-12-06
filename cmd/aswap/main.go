@@ -23,6 +23,8 @@ var (
 	contractId string
 	//auditContractCmd, redeemCmd, getContractIdCmd
 	otherContract string
+	//initiateCmd, participantCmd, redeemCmd, refundCmd
+	privateKey string
 )
 
 func init() {

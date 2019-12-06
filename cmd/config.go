@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
@@ -18,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -52,6 +54,7 @@ type Config struct {
 	Chain          *chain   `json:"-"`
 	client         *ethclient.Client
 	ks             *keystore.KeyStore
+	key            *ecdsa.PrivateKey
 }
 
 type SecretHashPair struct {
@@ -114,17 +117,32 @@ func (c *Config) Connect(otherContract string) {
 	c.client = client
 }
 
-func (c *Config) Unlock() {
-	c.ks = keystore.NewKeyStore(c.KeyStore, keystore.StandardScryptN, keystore.StandardScryptP)
-	fromAccount := accounts.Account{Address: common.HexToAddress(c.Account)}
-
-	if c.ks.HasAddress(fromAccount.Address) {
-		err := c.ks.Unlock(fromAccount, c.Password)
+func (c *Config) Unlock(privateKey string) {
+	switch {
+	case privateKey != "":
+		key, err := crypto.HexToECDSA(privateKey)
 		if err != nil {
-			logger.FatalError("Fatal to unlock %v", c.Account)
+			logger.FatalError("Fatal to parse private key (%v): %v", privateKey, err)
 		}
-	} else {
-		logger.FatalError("Fatal to find %v in %v keystore (%v)", c.Account, c.KeyStore, c.ks.Accounts())
+
+		account := crypto.PubkeyToAddress(key.PublicKey).String()
+
+		if strings.ToLower(c.Account) != strings.ToLower(account) {
+			logger.FatalError("Fatal to match the private key (%v) and account (%v)", privateKey, c.Account)
+		}
+		c.key = key
+	default:
+		c.ks = keystore.NewKeyStore(c.KeyStore, keystore.StandardScryptN, keystore.StandardScryptP)
+		fromAccount := accounts.Account{Address: common.HexToAddress(c.Account)}
+
+		if c.ks.HasAddress(fromAccount.Address) {
+			err := c.ks.Unlock(fromAccount, c.Password)
+			if err != nil {
+				logger.FatalError("Fatal to unlock %v", c.Account)
+			}
+		} else {
+			logger.FatalError("Fatal to find %v in %v keystore (%v)", c.Account, c.KeyStore, c.ks.Accounts())
+		}
 	}
 }
 

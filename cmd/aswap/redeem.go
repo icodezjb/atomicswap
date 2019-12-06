@@ -24,6 +24,12 @@ func init() {
 		"",
 		"contract address")
 
+	redeemCmd.Flags().StringVar(
+		&privateKey,
+		"key",
+		"",
+		"the private key of the account without '0x' prefix. if specified, the keystore will no longer be used")
+
 	_ = redeemCmd.MarkFlagRequired("id")
 	_ = redeemCmd.MarkFlagRequired("secret")
 	_ = redeemCmd.MarkFlagRequired("other")
@@ -32,8 +38,8 @@ func init() {
 var secret string
 
 var redeemCmd = &cobra.Command{
-	Use:   "redeem --id <contractId> --secret <secret> --other <contract address>",
-	Short: "redeem on the other contract by the secret",
+	Use:   "redeem --id <contractId> --secret <secret> --other <contract address> [--key <private key>]",
+	Short: "redeem once they know secret which is the preimage of the hashlock AND the time lock has no expired ",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		h.Config.ParseConfig(h.ConfigPath)
 	},
@@ -42,7 +48,7 @@ var redeemCmd = &cobra.Command{
 
 		h.Config.ValidateAddress(h.Config.Chain.Contract)
 
-		h.Config.Unlock()
+		h.Config.Unlock(privateKey)
 
 		contractId := common.HexToHash(contractId)
 		secret := common.HexToHash(secret)

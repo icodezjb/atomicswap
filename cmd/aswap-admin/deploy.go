@@ -2,6 +2,16 @@ package main
 
 import "github.com/spf13/cobra"
 
+func init() {
+	deployCmd.Flags().StringVar(
+		&privateKey,
+		"key",
+		"",
+		"the private key of the account without '0x' prefix. if specified, the keystore will no longer be used")
+}
+
+var privateKey string
+
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "deploy the atomicswap contract",
@@ -11,7 +21,7 @@ var deployCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		h.Config.Connect("")
 		h.Config.ValidateAddress(h.Config.Account)
-		h.Config.Unlock()
+		h.Config.Unlock(privateKey)
 		h.DeployContract()
 	},
 }

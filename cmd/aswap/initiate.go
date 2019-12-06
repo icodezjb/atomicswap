@@ -27,6 +27,12 @@ func init() {
 		-1,
 		"amount of atomicswap asset")
 
+	initiateCmd.Flags().StringVar(
+		&privateKey,
+		"key",
+		"",
+		"the private key of the account without '0x' prefix. if specified, the keystore will no longer be used")
+
 	_ = initiateCmd.MarkFlagRequired("participant")
 	_ = initiateCmd.MarkFlagRequired("amount")
 }
@@ -37,7 +43,7 @@ var (
 )
 
 var initiateCmd = &cobra.Command{
-	Use:   "initiate --participant <participant address> --amount <amount>",
+	Use:   "initiate --participant <participant address> --amount <amount> [--key <private key>]",
 	Short: "performed by the initiator to create the first contract",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		h.Config.ParseConfig(h.ConfigPath)
@@ -57,7 +63,7 @@ var initiateCmd = &cobra.Command{
 		h.Config.Connect("")
 
 		//Unlock account
-		h.Config.Unlock()
+		h.Config.Unlock(privateKey)
 
 		h.NewContract(common.HexToAddress(participant), initiateAmount, hashPair.Hash, timeLock)
 	},

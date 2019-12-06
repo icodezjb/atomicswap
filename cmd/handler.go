@@ -25,13 +25,17 @@ type Handler struct {
 }
 
 func (h *Handler) estimateGas(ctx context.Context, auth *bind.TransactOpts, txType string, input []byte) {
-	var (
-		contract *common.Address
-	)
-	if h.Config.Contract != "" {
-		tmpAddress := common.HexToAddress(h.Config.Contract)
-		contract = &tmpAddress
-	}
+	contract := func() *common.Address {
+		switch {
+		case txType == "Deploy":
+			return nil
+		case h.Config.Contract != "":
+			tmpAddress := common.HexToAddress(h.Config.Chain.Contract)
+			return &tmpAddress
+		default:
+			return nil
+		}
+	}()
 
 	estimateGas, err := h.Config.client.EstimateGas(ctx, ethereum.CallMsg{
 		From:     auth.From,
@@ -42,7 +46,7 @@ func (h *Handler) estimateGas(ctx context.Context, auth *bind.TransactOpts, txTy
 		Data:     input,
 	})
 	if err != nil {
-		logger.FatalError("Fatal to estimate gas: %v", err)
+		logger.FatalError("Fatal to estimate gas (%v): %v", txType, err)
 	}
 
 	feeByWei := new(big.Int).Mul(new(big.Int).SetUint64(estimateGas), auth.GasPrice).String()
@@ -58,7 +62,11 @@ func (h *Handler) estimateGas(ctx context.Context, auth *bind.TransactOpts, txTy
 }
 
 func (h *Handler) sendTx(ctx context.Context, auth *bind.TransactOpts, data []byte, contract *common.Address) *types.Transaction {
-	var rawTx *types.Transaction
+	var (
+		rawTx    *types.Transaction
+		txSigned *types.Transaction
+		err      error
+	)
 
 	// Create and Sign the transaction, sign it and schedule it for execution
 	if contract == nil {
@@ -66,11 +74,20 @@ func (h *Handler) sendTx(ctx context.Context, auth *bind.TransactOpts, data []by
 	} else {
 		rawTx = types.NewTransaction(auth.Nonce.Uint64(), *contract, auth.Value, auth.GasLimit, auth.GasPrice, data)
 	}
-	txSigned, err := h.Config.ks.SignTxWithPassphrase(
-		accounts.Account{Address: common.HexToAddress(h.Config.Account)},
-		h.Config.Password,
-		rawTx,
-		h.Config.Chain.ID)
+
+	switch {
+	case h.Config.key != nil:
+		txSigned, err = types.SignTx(rawTx, types.NewEIP155Signer(h.Config.Chain.ID), h.Config.key)
+	case h.Config.ks != nil:
+		txSigned, err = h.Config.ks.SignTxWithPassphrase(
+			accounts.Account{Address: common.HexToAddress(h.Config.Account)},
+			h.Config.Password,
+			rawTx,
+			h.Config.Chain.ID)
+	default:
+		logger.FatalError("Fatal to get sign function")
+	}
+
 	if err != nil {
 		logger.FatalError("Fatal to sign tx %v: %v", h.Config.Account, err)
 	}
@@ -98,7 +115,7 @@ func (h *Handler) DeployContract() {
 	h.estimateGas(ctx, auth, "Deploy", input)
 
 	//deploy-contract prompt
-	h.Config.promptConfirm("deploy")
+	h.Config.promptConfirm("Deploy")
 
 	//send tx
 	txSigned := h.sendTx(ctx, auth, input, nil)
@@ -138,7 +155,7 @@ func (h *Handler) NewContract(participant common.Address, amount int64, hashLock
 	h.estimateGas(ctx, auth, "Call", input)
 
 	//call-contract prompt
-	h.Config.promptConfirm("call")
+	h.Config.promptConfirm("Call")
 
 	//send tx
 	contract := common.HexToAddress(h.Config.Contract)
@@ -267,7 +284,7 @@ func (h *Handler) Redeem(contractId common.Hash, secret common.Hash) {
 	h.estimateGas(ctx, auth, "Call", input)
 
 	//call-contract prompt
-	h.Config.promptConfirm("call")
+	h.Config.promptConfirm("Call")
 
 	//send tx
 	contract := common.HexToAddress(h.Config.Chain.Contract)
@@ -292,6 +309,12 @@ func (h *Handler) Refund(contractId common.Hash) {
 	if err != nil {
 		logger.FatalError("Fatal to pack newContract: %v", err)
 	}
+
+	//estimate call contract fee
+	h.estimateGas(ctx, auth, "Call", input)
+
+	//call-contract prompt
+	h.Config.promptConfirm("Call")
 
 	//send tx
 	contract := common.HexToAddress(h.Config.Chain.Contract)
