@@ -12,7 +12,7 @@ import (
 const lock48Hour = 48 * 60 * 60
 
 var (
-	h cmd.Handle
+	h cmd.Handler
 
 	rootCmd = &cobra.Command{
 		Use:   "aswap",
@@ -69,7 +69,7 @@ config-example.json
     "otherChainName": "ETH2",
     "otherURL": "http://127.0.0.1:7545",
     "account": "0xffd79941b7085805f48ded97298694c6bb950e2c",
-    "keystoreDir": "./",
+    "keystoreDir": "/absolute/path/",
     "password": "password"
 }
 `)

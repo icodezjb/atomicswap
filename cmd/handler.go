@@ -19,12 +19,12 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type Handle struct {
+type Handler struct {
 	ConfigPath string
 	Config     *Config
 }
 
-func (h *Handle) estimateGas(ctx context.Context, auth *bind.TransactOpts, txType string, input []byte) {
+func (h *Handler) estimateGas(ctx context.Context, auth *bind.TransactOpts, txType string, input []byte) {
 	var (
 		contract *common.Address
 	)
@@ -57,7 +57,7 @@ func (h *Handle) estimateGas(ctx context.Context, auth *bind.TransactOpts, txTyp
 
 }
 
-func (h *Handle) sendTx(ctx context.Context, auth *bind.TransactOpts, data []byte, contract *common.Address) *types.Transaction {
+func (h *Handler) sendTx(ctx context.Context, auth *bind.TransactOpts, data []byte, contract *common.Address) *types.Transaction {
 	var rawTx *types.Transaction
 
 	// Create and Sign the transaction, sign it and schedule it for execution
@@ -85,7 +85,7 @@ func (h *Handle) sendTx(ctx context.Context, auth *bind.TransactOpts, data []byt
 	return txSigned
 }
 
-func (h *Handle) DeployContract() {
+func (h *Handler) DeployContract() {
 	ctx := context.Background()
 
 	auth := h.Config.makeAuth(ctx, 0)
@@ -113,11 +113,11 @@ func (h *Handle) DeployContract() {
 	h.Config.rotate(h.ConfigPath)
 }
 
-func (h *Handle) StatContract() {
+func (h *Handler) StatContract() {
 	//TODO
 }
 
-func (h *Handle) NewContract(participant common.Address, amount int64, hashLock [32]byte, timeLock *big.Int) {
+func (h *Handler) NewContract(participant common.Address, amount int64, hashLock [32]byte, timeLock *big.Int) {
 	ctx := context.Background()
 
 	auth := h.Config.makeAuth(ctx, amount)
@@ -147,7 +147,7 @@ func (h *Handle) NewContract(participant common.Address, amount int64, hashLock 
 	logger.Info("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 }
 
-func (h *Handle) GetContractId(txID common.Hash) {
+func (h *Handler) GetContractId(txID common.Hash) {
 	logger.Info("%v(%v) txid: %v", h.Config.Chain.Name, h.Config.Chain.ID, txID.String())
 	logger.Info("contract address: %v\n", h.Config.Chain.Contract)
 
@@ -181,7 +181,7 @@ func (h *Handle) GetContractId(txID common.Hash) {
 	logger.Info("SecretHash = %s", hexutil.Encode(logHTLCEvent.Hashlock[:]))
 }
 
-func (h *Handle) AuditContract(from common.Address, contractId common.Hash) {
+func (h *Handler) AuditContract(from common.Address, contractId common.Hash) {
 	ctx := context.Background()
 
 	logger.Info("Call getContract ...")
@@ -210,7 +210,7 @@ func (h *Handle) AuditContract(from common.Address, contractId common.Hash) {
 	logger.Info("Secret     = %s", hexutil.Encode(contractDetails.Preimage[:]))
 }
 
-func (h *Handle) auditContract(ctx context.Context, result interface{}, method string, from common.Address, contractId common.Hash) {
+func (h *Handler) auditContract(ctx context.Context, result interface{}, method string, from common.Address, contractId common.Hash) {
 	parsedABI, err := abi.JSON(strings.NewReader(htlc.HtlcABI))
 	if err != nil {
 		logger.FatalError("Fatal to parse HtlcABI: %v", err)
@@ -246,7 +246,7 @@ func (h *Handle) auditContract(ctx context.Context, result interface{}, method s
 	}
 }
 
-func (h *Handle) Redeem(contractId common.Hash, secret common.Hash) {
+func (h *Handler) Redeem(contractId common.Hash, secret common.Hash) {
 	ctx := context.Background()
 
 	auth := h.Config.makeAuth(ctx, 0)
@@ -276,7 +276,7 @@ func (h *Handle) Redeem(contractId common.Hash, secret common.Hash) {
 	logger.Info("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 }
 
-func (h *Handle) Refund(contractId common.Hash) {
+func (h *Handler) Refund(contractId common.Hash) {
 	ctx := context.Background()
 
 	auth := h.Config.makeAuth(ctx, 0)
