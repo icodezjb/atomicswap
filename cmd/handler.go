@@ -170,7 +170,7 @@ func (h *Handler) GetContractId(txID common.Hash) {
 
 	receipt, err := h.Config.client.TransactionReceipt(context.Background(), txID)
 	if err != nil {
-		logger.FatalError("Failed to get tx %v receipt: %v", txID.String(), err)
+		logger.FatalError("Fatal to get tx %v receipt: %v", txID.String(), err)
 	}
 
 	var logHTLCEvent htlc.HtlcLogHTLCNew
@@ -178,12 +178,13 @@ func (h *Handler) GetContractId(txID common.Hash) {
 	if err != nil {
 		logger.FatalError("Fatal to parse HtlcABI: %v", err)
 	}
-	if err := parsedABI.Unpack(&logHTLCEvent, "LogHTLCNew", receipt.Logs[0].Data); err != nil {
-		logger.FatalError("Failed to unpack log data for LogHTLCNew: %v", err)
+
+	if len(receipt.Logs) == 0 {
+		logger.FatalError("len(receipt.Logs) == 0, receipt.Status = %v", receipt.Status)
 	}
 
-	if receipt.Logs == nil {
-		logger.FatalError("initiateTx receipt.Logs == nil, receipt.Status = %v", receipt.Status)
+	if err := parsedABI.Unpack(&logHTLCEvent, "LogHTLCNew", receipt.Logs[0].Data); err != nil {
+		logger.FatalError("Fatal to unpack log data for LogHTLCNew: %v", err)
 	}
 
 	logHTLCEvent.ContractId = receipt.Logs[0].Topics[1]
