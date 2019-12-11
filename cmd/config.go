@@ -55,6 +55,9 @@ type Config struct {
 	client         *ethclient.Client
 	ks             *keystore.KeyStore
 	key            *ecdsa.PrivateKey
+
+	//only for test
+	test bool
 }
 
 type SecretHashPair struct {
@@ -205,6 +208,11 @@ func (c *Config) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
 
 func (c *Config) promptConfirm(prefix string) {
 	logger.Info("? Confirm to %v the contract on %v(chainID = %v)? [y/N]", prefix, c.Chain.Name, c.Chain.ID)
+
+	if c.test == true {
+		logger.Info("Test chose: y")
+		return
+	}
 
 	reader := bufio.NewReader(os.Stdin)
 	data, _, _ := reader.ReadLine()
