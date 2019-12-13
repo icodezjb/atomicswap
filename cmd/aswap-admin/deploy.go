@@ -1,6 +1,10 @@
 package main
 
-import "github.com/spf13/cobra"
+import (
+	"context"
+
+	"github.com/spf13/cobra"
+)
 
 func init() {
 	deployCmd.Flags().StringVar(
@@ -22,6 +26,6 @@ var deployCmd = &cobra.Command{
 		h.Config.Connect("")
 		h.Config.ValidateAddress(h.Config.Account)
 		h.Config.Unlock(privateKey)
-		h.DeployContract()
+		h.DeployContract(context.Background())
 	},
 }

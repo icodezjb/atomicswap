@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+
+	"github.com/icodezjb/atomicswap/logger"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 )
@@ -53,6 +57,7 @@ var redeemCmd = &cobra.Command{
 		contractId := common.HexToHash(contractId)
 		secret := common.HexToHash(secret)
 
-		h.Redeem(contractId, secret)
+		txSigned := h.Redeem(context.Background(), contractId, secret)
+		logger.Info("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 	},
 }

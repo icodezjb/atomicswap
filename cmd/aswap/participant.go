@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"math/big"
 	"time"
+
+	"github.com/icodezjb/atomicswap/logger"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
@@ -79,6 +82,7 @@ var participantCmd = &cobra.Command{
 		//Unlock account
 		h.Config.Unlock(privateKey)
 
-		h.NewContract(common.HexToAddress(initiator), participateAmount, secretHash, timeLock)
+		txSigned := h.NewContract(context.Background(), common.HexToAddress(initiator), participateAmount, secretHash, timeLock)
+		logger.Info("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 	},
 }

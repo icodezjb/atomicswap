@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"math/big"
 	"time"
 
@@ -65,6 +66,7 @@ var initiateCmd = &cobra.Command{
 		//Unlock account
 		h.Config.Unlock(privateKey)
 
-		h.NewContract(common.HexToAddress(participant), initiateAmount, hashPair.Hash, timeLock)
+		txSigned := h.NewContract(context.Background(), common.HexToAddress(participant), initiateAmount, hashPair.Hash, timeLock)
+		logger.Info("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 	},
 }

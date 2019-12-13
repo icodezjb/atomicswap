@@ -19,18 +19,22 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
+//in uints
+const gasLimit = uint64(3000000)
+
 type HashTimeLockContract interface {
-	DeployContract()
-	StatContract()
-	NewContract(participant common.Address, amount int64, hashLock [32]byte, timeLock *big.Int)
-	GetContractId(initiateTx common.Hash)
-	AuditContract(contractId common.Hash)
-	Redeem(contractId common.Hash, secret common.Hash)
-	Refund(contractId common.Hash)
+	DeployContract(ctx context.Context)
+	StatContract(ctx context.Context)
+	NewContract(ctx context.Context, participant common.Address, amount int64, hashLock [32]byte, timeLock *big.Int) *types.Transaction
+	GetContractId(ctx context.Context, txID common.Hash) HtlcLogHTLCNew
+	AuditContract(ctx context.Context, result interface{}, method string, contractId common.Hash)
+	Redeem(ctx context.Context, contractId common.Hash, secret common.Hash) *types.Transaction
+	Refund(ctx context.Context, contractId common.Hash) *types.Transaction
 }
 
 type chain struct {
@@ -66,7 +70,6 @@ type SecretHashPair struct {
 }
 
 func NewSecretHashPair() *SecretHashPair {
-
 	s := new(SecretHashPair)
 	_, err := rand.Read(s.Secret[:])
 	if err != nil {
@@ -75,6 +78,26 @@ func NewSecretHashPair() *SecretHashPair {
 	s.Hash = sha256.Sum256(s.Secret[:])
 
 	return s
+}
+
+type HtlcLogHTLCNew struct {
+	ContractId [32]byte
+	Sender     common.Address
+	Receiver   common.Address
+	Amount     *big.Int
+	Hashlock   [32]byte
+	Timelock   *big.Int
+}
+
+type ContractDetails struct {
+	Sender    common.Address
+	Receiver  common.Address
+	Amount    *big.Int
+	Hashlock  [32]byte
+	Timelock  *big.Int
+	Withdrawn bool
+	Refunded  bool
+	Preimage  [32]byte
 }
 
 func (c *Config) ParseConfig(cfgPath string) {
@@ -150,11 +173,8 @@ func (c *Config) Unlock(privateKey string) {
 }
 
 func (c *Config) ValidateAddress(address string) {
-	valid := regexp.MustCompile("^0x[0-9a-fA-F]{40}$").MatchString(address)
-	switch valid {
-	case false:
+	if valid := regexp.MustCompile("^0x[0-9a-fA-F]{40}$").MatchString(address); !valid {
 		logger.FatalError("Fatal to validate address: %v", address)
-	default:
 	}
 }
 
@@ -197,8 +217,8 @@ func (c *Config) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
 	}
 
 	auth.Nonce = big.NewInt(int64(nonce))
-	auth.Value = big.NewInt(value)  //in wei
-	auth.GasLimit = uint64(3000000) //in uints
+	auth.Value = big.NewInt(value) //in wei
+	auth.GasLimit = gasLimit
 
 	gasPriceInt, _ := big.NewInt(0).SetString(gasPrice.String(), 10)
 	auth.GasPrice = gasPriceInt
@@ -209,7 +229,7 @@ func (c *Config) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
 func (c *Config) promptConfirm(prefix string) {
 	logger.Info("? Confirm to %v the contract on %v(chainID = %v)? [y/N]", prefix, c.Chain.Name, c.Chain.ID)
 
-	if c.test == true {
+	if c.test {
 		logger.Info("Test chose: y")
 		return
 	}

@@ -1,7 +1,13 @@
 package main
 
 import (
+	"context"
+	"time"
+
+	"github.com/icodezjb/atomicswap/logger"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
 
@@ -34,6 +40,13 @@ var getContractIdCmd = &cobra.Command{
 
 		h.Config.ValidateAddress(h.Config.Chain.Contract)
 
-		h.GetContractId(common.HexToHash(txid))
+		logHTLCEvent := h.GetContractId(context.Background(), common.HexToHash(txid))
+
+		logger.Info("ContractId = %s", hexutil.Encode(logHTLCEvent.ContractId[:]))
+		logger.Info("Sender     = %s", logHTLCEvent.Sender.String())
+		logger.Info("Receiver   = %s", logHTLCEvent.Receiver.String())
+		logger.Info("Amount     = %s", logHTLCEvent.Amount)
+		logger.Info("TimeLock   = %s (%s)", logHTLCEvent.Timelock, time.Unix(logHTLCEvent.Timelock.Int64(), 0).Format(time.RFC3339))
+		logger.Info("SecretHash = %s", hexutil.Encode(logHTLCEvent.Hashlock[:]))
 	},
 }

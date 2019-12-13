@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+
+	"github.com/icodezjb/atomicswap/logger"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 )
@@ -39,6 +43,8 @@ var refundCmd = &cobra.Command{
 
 		contractId := common.HexToHash(contractId)
 
-		h.Refund(contractId)
+		if txSigned := h.Refund(context.Background(), contractId); txSigned != nil {
+			logger.Info("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
+		}
 	},
 }

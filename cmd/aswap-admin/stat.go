@@ -1,6 +1,10 @@
 package main
 
-import "github.com/spf13/cobra"
+import (
+	"context"
+
+	"github.com/spf13/cobra"
+)
 
 var statCmd = &cobra.Command{
 	Use:   "stat",
@@ -10,6 +14,6 @@ var statCmd = &cobra.Command{
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		h.Config.Connect("")
-		h.StatContract()
+		h.StatContract(context.Background())
 	},
 }
