@@ -1,0 +1,12 @@
+{
+    "chainID": 111,
+    "chainName": "node2",
+    "url": "http://127.0.0.1:8545",
+    "otherChainID": 110,
+    "otherChainName": "node1",
+    "otherURL": "http://127.0.0.1:7545",
+    "account": "0x75a8f951632c2e550906f31b53b7923f45be5157",
+    "contract": "0x071C14E8f6379c4f1d727fDf833024AE9C73C574",
+    "keystoreDir": "./testing/integration/node2",
+    "password": "111111"
+}
