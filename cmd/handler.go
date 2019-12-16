@@ -104,7 +104,7 @@ func (h *Handler) DeployContract(ctx context.Context) {
 
 	logger.Info("Deploy contract...")
 
-	input := common.FromHex(htlc.HtlcBin)
+	input := common.FromHex(htlc.HTLCBIN)
 
 	//estimate deploy contract fee
 	h.estimateGas(ctx, auth, "Deploy", input)
@@ -134,7 +134,7 @@ func (h *Handler) NewContract(ctx context.Context, participant common.Address, a
 
 	logger.Info("Call NewContract ...")
 
-	parsedABI, err := abi.JSON(strings.NewReader(htlc.HtlcABI))
+	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
 		logger.FatalError("Fatal to parse HtlcABI: %v", err)
 	}
@@ -166,7 +166,7 @@ func (h *Handler) GetContractId(ctx context.Context, txID common.Hash) HtlcLogHT
 	}
 
 	var logHTLCEvent HtlcLogHTLCNew
-	parsedABI, err := abi.JSON(strings.NewReader(htlc.HtlcABI))
+	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
 		logger.FatalError("Fatal to parse HtlcABI: %v", err)
 	}
@@ -187,7 +187,7 @@ func (h *Handler) GetContractId(ctx context.Context, txID common.Hash) HtlcLogHT
 }
 
 func (h *Handler) AuditContract(ctx context.Context, result interface{}, method string, contractId common.Hash) {
-	parsedABI, err := abi.JSON(strings.NewReader(htlc.HtlcABI))
+	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
 		logger.FatalError("Fatal to parse HtlcABI: %v", err)
 	}
@@ -228,7 +228,7 @@ func (h *Handler) Redeem(ctx context.Context, contractId common.Hash, secret com
 
 	logger.Info("Call Withdraw ...")
 
-	parsedABI, err := abi.JSON(strings.NewReader(htlc.HtlcABI))
+	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
 		logger.FatalError("Fatal to parse HtlcABI: %v", err)
 	}
@@ -255,7 +255,7 @@ func (h *Handler) Refund(ctx context.Context, contractId common.Hash) *types.Tra
 
 	logger.Info("Call Withdraw ...")
 
-	parsedABI, err := abi.JSON(strings.NewReader(htlc.HtlcABI))
+	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
 		logger.Error("Fatal to parse HtlcABI: %v", err)
 		return nil

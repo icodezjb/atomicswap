@@ -32,7 +32,7 @@ build:
 
 .PHONY:test
 test:
-	$(GOTEST) -v ./contract/...
+	$(GOTEST) -v ./cmd/ -run TestHandlerAll_MainFlow
 
 .PHONY:clean
 clean:
