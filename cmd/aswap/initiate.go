@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math/big"
+	"os"
 	"time"
 
 	"github.com/icodezjb/atomicswap/cmd"
@@ -47,7 +49,10 @@ var initiateCmd = &cobra.Command{
 	Use:   "initiate --participant <participant address> --amount <amount> [--key <private key>]",
 	Short: "performed by the initiator to create the first contract",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		h.Config.ParseConfig(h.ConfigPath)
+		if err := h.Config.ParseConfig(h.ConfigPath); err != nil {
+			fmt.Printf("%v\n", err)
+			os.Exit(1)
+		}
 	},
 	Run: func(init *cobra.Command, args []string) {
 		//check contract address

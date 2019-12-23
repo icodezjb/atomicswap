@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/icodezjb/atomicswap/logger"
 
@@ -45,7 +47,10 @@ var redeemCmd = &cobra.Command{
 	Use:   "redeem --id <contractId> --secret <secret> --other <contract address> [--key <private key>]",
 	Short: "redeem once they know secret which is the preimage of the hashlock AND the time lock has no expired ",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		h.Config.ParseConfig(h.ConfigPath)
+		if err := h.Config.ParseConfig(h.ConfigPath); err != nil {
+			fmt.Printf("%v\n", err)
+			os.Exit(1)
+		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		h.Config.Connect(otherContract)

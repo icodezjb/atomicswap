@@ -19,23 +19,13 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/pkg/errors"
 )
 
 //in uints
 const gasLimit = uint64(3000000)
-
-type HashTimeLockContract interface {
-	DeployContract(ctx context.Context)
-	StatContract(ctx context.Context)
-	NewContract(ctx context.Context, participant common.Address, amount int64, hashLock [32]byte, timeLock *big.Int) *types.Transaction
-	GetContractId(ctx context.Context, txID common.Hash) HtlcLogHTLCNew
-	AuditContract(ctx context.Context, result interface{}, method string, contractId common.Hash)
-	Redeem(ctx context.Context, contractId common.Hash, secret common.Hash) *types.Transaction
-	Refund(ctx context.Context, contractId common.Hash) *types.Transaction
-}
 
 type chain struct {
 	ID       *big.Int
@@ -100,22 +90,24 @@ type ContractDetails struct {
 	Preimage  [32]byte
 }
 
-func (c *Config) ParseConfig(cfgPath string) {
+func (c *Config) ParseConfig(cfgPath string) error {
 	configFile, err := os.Open(cfgPath)
 	defer configFile.Close() //nolint:staticcheck
 
 	if err != nil {
-		logger.FatalError("Fatal to open config file (%s): %v", cfgPath, err)
+		return errors.Wrapf(err, "open config file (%s)", cfgPath)
 	}
 
 	configStr, err := ioutil.ReadAll(configFile)
 	if err != nil {
-		logger.FatalError("Fatal to read config file (%s): %v", cfgPath, err)
+		return errors.Wrapf(err, "read config file (%s)", cfgPath)
 	}
 
 	if err := json.Unmarshal(configStr, c); err != nil {
-		logger.FatalError("Fatal to parse config file (%s): %v", cfgPath, err)
+		return errors.Wrapf(err, "parse config file (%s)", cfgPath)
 	}
+
+	return nil
 }
 
 func (c *Config) Connect(otherContract string) {

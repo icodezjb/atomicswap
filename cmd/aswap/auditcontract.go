@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/icodezjb/atomicswap/cmd"
@@ -32,29 +34,39 @@ var auditContractCmd = &cobra.Command{
 	Use:   "auditcontract --id <contractId> [--other <contract address>]",
 	Short: "get the atomicswap pair details with the specified contractId",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		h.Config.ParseConfig(h.ConfigPath)
+		if err := h.Config.ParseConfig(h.ConfigPath); err != nil {
+			fmt.Printf("%v\n", err)
+			os.Exit(1)
+		}
 	},
 	Run: func(_ *cobra.Command, args []string) {
 		h.Config.Connect(otherContract)
 
 		h.Config.ValidateAddress(h.Config.Account)
-
 		h.Config.ValidateAddress(h.Config.Chain.Contract)
 
-		logger.Info("Call getContract ...")
-		logger.Info("contract address: %v\n", h.Config.Chain.Contract)
+		printBanner(h.Config.Chain.Contract)
 
 		contractDetails := new(cmd.ContractDetails)
 
 		h.AuditContract(context.Background(), contractDetails, "getContract", common.HexToHash(contractId))
 
-		logger.Info("Sender     = %s", contractDetails.Sender.String())
-		logger.Info("Receiver   = %s", contractDetails.Receiver.String())
-		logger.Info("Amount     = %s (wei)", contractDetails.Amount)
-		logger.Info("TimeLock   = %s (%s)", contractDetails.Timelock, time.Unix(contractDetails.Timelock.Int64(), 0))
-		logger.Info("SecretHash = %s", hexutil.Encode(contractDetails.Hashlock[:]))
-		logger.Info("Withdrawn  = %v", contractDetails.Withdrawn)
-		logger.Info("Refunded   = %v", contractDetails.Refunded)
-		logger.Info("Secret     = %s", hexutil.Encode(contractDetails.Preimage[:]))
+		printContractDetails(contractDetails)
 	},
+}
+
+func printBanner(contract string) {
+	logger.Info("Call getContract ...")
+	logger.Info("contract address: %v\n", contract)
+}
+
+func printContractDetails(d *cmd.ContractDetails) {
+	logger.Info("Sender     = %s", d.Sender.String())
+	logger.Info("Receiver   = %s", d.Receiver.String())
+	logger.Info("Amount     = %s (wei)", d.Amount)
+	logger.Info("TimeLock   = %s (%s)", d.Timelock, time.Unix(d.Timelock.Int64(), 0))
+	logger.Info("SecretHash = %s", hexutil.Encode(d.Hashlock[:]))
+	logger.Info("Withdrawn  = %v", d.Withdrawn)
+	logger.Info("Refunded   = %v", d.Refunded)
+	logger.Info("Secret     = %s", hexutil.Encode(d.Preimage[:]))
 }

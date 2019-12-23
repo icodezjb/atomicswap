@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/icodezjb/atomicswap/logger"
 
@@ -29,7 +31,10 @@ var refundCmd = &cobra.Command{
 	Use:   "refund --id <contractId> [--key <private key>]",
 	Short: "refund on the contract if there was no withdraw AND the time lock has expired",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		h.Config.ParseConfig(h.ConfigPath)
+		if err := h.Config.ParseConfig(h.ConfigPath); err != nil {
+			fmt.Printf("%v\n", err)
+			os.Exit(1)
+		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		//check contract address

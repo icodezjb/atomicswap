@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"time"
 
+	"github.com/icodezjb/atomicswap/cmd"
 	"github.com/icodezjb/atomicswap/logger"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -33,7 +36,10 @@ var getContractIdCmd = &cobra.Command{
 	Use:   "getcontractid --txid <initiator or participant txid> [--other <contract address>]",
 	Short: "get the atomicswap contract id with the specified initiate txid",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		h.Config.ParseConfig(h.ConfigPath)
+		if err := h.Config.ParseConfig(h.ConfigPath); err != nil {
+			fmt.Printf("%v\n", err)
+			os.Exit(1)
+		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		h.Config.Connect(otherContract)
@@ -42,11 +48,15 @@ var getContractIdCmd = &cobra.Command{
 
 		logHTLCEvent := h.GetContractId(context.Background(), common.HexToHash(txid))
 
-		logger.Info("ContractId = %s", hexutil.Encode(logHTLCEvent.ContractId[:]))
-		logger.Info("Sender     = %s", logHTLCEvent.Sender.String())
-		logger.Info("Receiver   = %s", logHTLCEvent.Receiver.String())
-		logger.Info("Amount     = %s", logHTLCEvent.Amount)
-		logger.Info("TimeLock   = %s (%s)", logHTLCEvent.Timelock, time.Unix(logHTLCEvent.Timelock.Int64(), 0).Format(time.RFC3339))
-		logger.Info("SecretHash = %s", hexutil.Encode(logHTLCEvent.Hashlock[:]))
+		printEvent(logHTLCEvent)
 	},
+}
+
+func printEvent(e cmd.HtlcLogHTLCNew) {
+	logger.Info("ContractId = %s", hexutil.Encode(e.ContractId[:]))
+	logger.Info("Sender     = %s", e.Sender.String())
+	logger.Info("Receiver   = %s", e.Receiver.String())
+	logger.Info("Amount     = %s", e.Amount)
+	logger.Info("TimeLock   = %s (%s)", e.Timelock, time.Unix(e.Timelock.Int64(), 0).Format(time.RFC3339))
+	logger.Info("SecretHash = %s", hexutil.Encode(e.Hashlock[:]))
 }
