@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/icodezjb/atomicswap/cmd"
 	"log"
+
+	"github.com/icodezjb/atomicswap/cmd"
 
 	"github.com/spf13/cobra"
 )

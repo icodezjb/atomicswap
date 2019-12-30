@@ -12,8 +12,6 @@ import (
 	"runtime"
 	"sync"
 	"testing"
-
-	"github.com/icodezjb/atomicswap/logger"
 )
 
 const (
@@ -54,7 +52,7 @@ func TestMain(m *testing.M) {
 
 	flag.Parse()
 
-	logger.Info("geth path: %s", node1.path)
+	fmt.Printf("geth path: %s\n", node1.path)
 
 	node1.Cleanup()
 	node2.Cleanup()
@@ -109,12 +107,12 @@ func newTestGeth(dir string, initArgs []string, runArgs []string) *TestCmd {
 	case "linux":
 		tc.path = "testing/geth-linux-amd64-1.9.8-d62e9b28"
 	default:
-		logger.FatalError("os '%s' is not support", runtime.GOOS)
+		panic(fmt.Sprintf("os '%s' is not support\n", runtime.GOOS))
 	}
 
 	gethLog, err := os.OpenFile(dir+"geth.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {
-		logger.FatalError("Fatal to open geth.log: %v", err)
+		panic(fmt.Sprintf("open geth.log: %v\n", err))
 	}
 
 	tc.logFile = gethLog
@@ -157,7 +155,7 @@ func (tc *TestCmd) MustRun() {
 
 func (tc *TestCmd) KillExit() {
 	if err := tc.cmd.Process.Signal(os.Interrupt); err != nil {
-		logger.Warn("%v", err)
+		fmt.Printf("%v", err)
 	}
 
 	if tc.logFile != nil {
@@ -173,7 +171,7 @@ func (tc *TestCmd) Write(b []byte) (n int, err error) {
 	lines := bytes.Split(b, []byte("\n"))
 	for _, line := range lines {
 		if len(line) > 0 {
-			logger.Info("(stderr) %s", line)
+			fmt.Printf("(stderr) %s\n", line)
 		}
 	}
 
