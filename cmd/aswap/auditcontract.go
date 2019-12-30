@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -39,8 +39,8 @@ var auditContractCmd = &cobra.Command{
 		cmd.Must(h.Config.ValidateAddress(h.Config.Account))
 		cmd.Must(h.Config.ValidateAddress(h.Config.Chain.Contract))
 
-		fmt.Println("Call getContract ...")
-		fmt.Printf("contract address: %v\n", h.Config.Chain.Contract)
+		log.Print("Call getContract ...")
+		log.Printf("contract address: %s", h.Config.Chain.Contract)
 
 		contractDetails := new(cmd.ContractDetails)
 
@@ -51,12 +51,12 @@ var auditContractCmd = &cobra.Command{
 }
 
 func printContractDetails(d *cmd.ContractDetails) {
-	fmt.Printf("Sender     = %s\n", d.Sender.String())
-	fmt.Printf("Receiver   = %s\n", d.Receiver.String())
-	fmt.Printf("Amount     = %s (wei)\n", d.Amount)
-	fmt.Printf("TimeLock   = %s (%s)\n", d.Timelock, time.Unix(d.Timelock.Int64(), 0))
-	fmt.Printf("SecretHash = %s\n", hexutil.Encode(d.Hashlock[:]))
-	fmt.Printf("Withdrawn  = %v\n", d.Withdrawn)
-	fmt.Printf("Refunded   = %v\n", d.Refunded)
-	fmt.Printf("Secret     = %s\n", hexutil.Encode(d.Preimage[:]))
+	log.Printf("Sender     = %s", d.Sender.String())
+	log.Printf("Receiver   = %s", d.Receiver.String())
+	log.Printf("Amount     = %s (wei)", d.Amount)
+	log.Printf("TimeLock   = %s (%s)", d.Timelock, time.Unix(d.Timelock.Int64(), 0))
+	log.Printf("SecretHash = %s", hexutil.Encode(d.Hashlock[:]))
+	log.Printf("Withdrawn  = %t", d.Withdrawn)
+	log.Printf("Refunded   = %t", d.Refunded)
+	log.Printf("Secret     = %s", hexutil.Encode(d.Preimage[:]))
 }

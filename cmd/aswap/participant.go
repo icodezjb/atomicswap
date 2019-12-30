@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"math/big"
 	"time"
 
@@ -86,6 +86,6 @@ var participantCmd = &cobra.Command{
 		txSigned, err := h.NewContract(context.Background(), common.HexToAddress(initiator), participateAmount, secretHash, timeLock)
 		cmd.Must(err)
 
-		fmt.Printf("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
+		log.Printf("%v(%v) txid: %v", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 	},
 }

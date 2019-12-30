@@ -7,8 +7,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
+	"log"
 	"math/big"
 	"os"
 	"regexp"
@@ -25,6 +25,10 @@ import (
 
 //in uints
 const gasLimit = uint64(3000000)
+
+func init() {
+	log.SetFlags(0)
+}
 
 type chain struct {
 	ID       *big.Int
@@ -62,8 +66,7 @@ func NewSecretHashPair() *SecretHashPair {
 	s := new(SecretHashPair)
 	_, err := rand.Read(s.Secret[:])
 	if err != nil {
-		fmt.Printf("Fatal to generate secret: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("generate secret: %v", err)
 	}
 	s.Hash = sha256.Sum256(s.Secret[:])
 
@@ -222,10 +225,10 @@ func (c *Config) makeAuth(ctx context.Context, value int64) (*bind.TransactOpts,
 }
 
 func (c *Config) promptConfirm(prefix string) {
-	fmt.Printf("? Confirm to %v the contract on %v(chainID = %v)? [y/N]\n", prefix, c.Chain.Name, c.Chain.ID)
+	log.Printf("? Confirm to %v the contract on %v(chainID = %v)? [y/N]", prefix, c.Chain.Name, c.Chain.ID)
 
 	if c.test {
-		fmt.Println("Test chose: y")
+		log.Println("Test chose: y")
 		return
 	}
 
@@ -234,16 +237,15 @@ func (c *Config) promptConfirm(prefix string) {
 
 	input := string(data)
 	if len(input) > 0 && strings.ToLower(input[:1]) == "y" {
-		fmt.Println("Your chose: y")
+		log.Println("Your chose: y")
 	} else {
-		fmt.Println("Your chose: N")
+		log.Println("Your chose: N")
 		os.Exit(0)
 	}
 }
 
 func Must(err error) {
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatalln(err)
 	}
 }

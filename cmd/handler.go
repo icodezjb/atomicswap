@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"math/big"
 	"strings"
 
@@ -55,8 +55,8 @@ func (h *Handler) estimateGas(ctx context.Context, auth *bind.TransactOpts, txTy
 		return errors.Wrapf(err, "account=%v get balance", auth.From.String())
 	}
 
-	fmt.Printf("from = %v, balance = %v\n", auth.From.String(), balance)
-	fmt.Printf("%v Contract fee = gas(%v) * gasPrice(%v) = %v\n", txType, estimateGas, auth.GasPrice.String(), feeByWei)
+	log.Printf("from = %v, balance = %v", auth.From.String(), balance)
+	log.Printf("%v Contract fee = gas(%v) * gasPrice(%v) = %v", txType, estimateGas, auth.GasPrice.String(), feeByWei)
 
 	return nil
 }
@@ -106,7 +106,7 @@ func (h *Handler) DeployContract(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Println("Deploy contract...")
+	log.Println("Deploy contract...")
 
 	input := common.FromHex(htlc.HTLCBIN)
 
@@ -127,8 +127,8 @@ func (h *Handler) DeployContract(ctx context.Context) error {
 	//update contract address
 	h.Config.Contract = crypto.CreateAddress(auth.From, txSigned.Nonce()).String()
 
-	fmt.Printf("contract address = %v\n", h.Config.Contract)
-	fmt.Printf("transaction hash = %v\n", txSigned.Hash().String())
+	log.Printf("contract address = %v", h.Config.Contract)
+	log.Printf("transaction hash = %v", txSigned.Hash().String())
 
 	//update config
 	return h.Config.rotate(h.ConfigPath)
@@ -145,7 +145,7 @@ func (h *Handler) NewContract(ctx context.Context, participant common.Address, a
 		return nil, errors.Wrapf(err, "make auth %v", h.Config.Account)
 	}
 
-	fmt.Println("Call NewContract ...")
+	log.Println("Call NewContract ...")
 
 	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
@@ -245,7 +245,7 @@ func (h *Handler) Redeem(ctx context.Context, contractId common.Hash, secret com
 		return nil, errors.Wrapf(err, "make auth %v", h.Config.Account)
 	}
 
-	fmt.Println("Call Withdraw ...")
+	log.Println("Call Withdraw ...")
 
 	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
@@ -277,7 +277,7 @@ func (h *Handler) Refund(ctx context.Context, contractId common.Hash) (*types.Tr
 		return nil, errors.Wrapf(err, "make auth %v", h.Config.Account)
 	}
 
-	fmt.Println("Call Withdraw ...")
+	log.Println("Call Withdraw ...")
 
 	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {

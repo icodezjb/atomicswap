@@ -1,10 +1,8 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/icodezjb/atomicswap/cmd"
+	"log"
 
 	"github.com/spf13/cobra"
 )
@@ -89,7 +87,6 @@ func main() {
 	rootCmd.AddCommand(refundCmd)
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatalln(err)
 	}
 }

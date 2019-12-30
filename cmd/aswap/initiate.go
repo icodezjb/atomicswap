@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"math/big"
 	"time"
 
@@ -58,7 +58,7 @@ var initiateCmd = &cobra.Command{
 
 		timeLock := new(big.Int).SetInt64(time.Now().Unix() + lock48Hour)
 		hashPair := cmd.NewSecretHashPair()
-		fmt.Printf("\nSecret = %s\nSecret Hash = %s\n",
+		log.Printf("\nSecret = %s\nSecret Hash = %s",
 			hexutil.Encode(hashPair.Secret[:]), hexutil.Encode(hashPair.Hash[:]))
 
 		//connect to chain
@@ -70,6 +70,6 @@ var initiateCmd = &cobra.Command{
 		txSigned, err := h.NewContract(context.Background(), common.HexToAddress(participant), initiateAmount, hashPair.Hash, timeLock)
 		cmd.Must(err)
 
-		fmt.Printf("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
+		log.Printf("%s(%s) txid: %s", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 	},
 }

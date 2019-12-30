@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 
 	"github.com/icodezjb/atomicswap/cmd"
 
@@ -61,6 +61,6 @@ var redeemCmd = &cobra.Command{
 		txSigned, err := h.Redeem(context.Background(), contractId, secret)
 		cmd.Must(err)
 
-		fmt.Printf("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
+		log.Printf("%v(%v) txid: %v", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 	},
 }
