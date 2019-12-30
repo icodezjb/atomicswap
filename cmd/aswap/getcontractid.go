@@ -3,11 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/icodezjb/atomicswap/cmd"
-	"github.com/icodezjb/atomicswap/logger"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -35,28 +33,29 @@ var txid string
 var getContractIdCmd = &cobra.Command{
 	Use:   "getcontractid --txid <initiator or participant txid> [--other <contract address>]",
 	Short: "get the atomicswap contract id with the specified initiate txid",
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if err := h.Config.ParseConfig(h.ConfigPath); err != nil {
-			fmt.Printf("%v\n", err)
-			os.Exit(1)
-		}
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return h.Config.ParseConfig(h.ConfigPath)
 	},
-	Run: func(cmd *cobra.Command, args []string) {
-		h.Config.Connect(otherContract)
+	Run: func(_ *cobra.Command, args []string) {
+		cmd.Must(h.Config.Connect(otherContract))
 
-		h.Config.ValidateAddress(h.Config.Chain.Contract)
+		cmd.Must(h.Config.ValidateAddress(h.Config.Chain.Contract))
 
-		logHTLCEvent := h.GetContractId(context.Background(), common.HexToHash(txid))
+		fmt.Printf("%v(%v) txid: %v", h.Config.Chain.Name, h.Config.Chain.ID, txid)
+		fmt.Printf("contract address: %v\n", h.Config.Chain.Contract)
+
+		logHTLCEvent, err := h.GetContractId(context.Background(), common.HexToHash(txid))
+		cmd.Must(err)
 
 		printEvent(logHTLCEvent)
 	},
 }
 
-func printEvent(e cmd.HtlcLogHTLCNew) {
-	logger.Info("ContractId = %s", hexutil.Encode(e.ContractId[:]))
-	logger.Info("Sender     = %s", e.Sender.String())
-	logger.Info("Receiver   = %s", e.Receiver.String())
-	logger.Info("Amount     = %s", e.Amount)
-	logger.Info("TimeLock   = %s (%s)", e.Timelock, time.Unix(e.Timelock.Int64(), 0).Format(time.RFC3339))
-	logger.Info("SecretHash = %s", hexutil.Encode(e.Hashlock[:]))
+func printEvent(e *cmd.HtlcLogHTLCNew) {
+	fmt.Printf("ContractId = %s\n", hexutil.Encode(e.ContractId[:]))
+	fmt.Printf("Sender     = %s\n", e.Sender.String())
+	fmt.Printf("Receiver   = %s\n", e.Receiver.String())
+	fmt.Printf("Amount     = %s\n", e.Amount)
+	fmt.Printf("TimeLock   = %s (%s)\n", e.Timelock, time.Unix(e.Timelock.Int64(), 0).Format(time.RFC3339))
+	fmt.Printf("SecretHash = %s\n", hexutil.Encode(e.Hashlock[:]))
 }

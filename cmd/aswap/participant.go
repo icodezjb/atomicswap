@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
 	"time"
 
-	"github.com/icodezjb/atomicswap/logger"
+	"github.com/icodezjb/atomicswap/cmd"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
@@ -63,18 +62,15 @@ var (
 var participantCmd = &cobra.Command{
 	Use:   "participant --initiator <initiator address> --amount <amount> --time <unix time> --hash <secret hash> [--key <private key>]",
 	Short: "performed by the participant to create the second contract",
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if err := h.Config.ParseConfig(h.ConfigPath); err != nil {
-			fmt.Printf("%v\n", err)
-			os.Exit(1)
-		}
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return h.Config.ParseConfig(h.ConfigPath)
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		//check contract address
-		h.Config.ValidateAddress(h.Config.Contract)
+		cmd.Must(h.Config.ValidateAddress(h.Config.Contract))
 
 		//check participant address
-		h.Config.ValidateAddress(initiator)
+		cmd.Must(h.Config.ValidateAddress(initiator))
 
 		//half of initiator timelock
 		timeLock := new(big.Int).SetInt64(time.Now().Unix() + (untilTime-time.Now().Unix())/2)
@@ -82,12 +78,14 @@ var participantCmd = &cobra.Command{
 
 		secretHash := common.HexToHash(hash)
 		//connect to chain
-		h.Config.Connect("")
+		cmd.Must(h.Config.Connect(""))
 
 		//Unlock account
-		h.Config.Unlock(privateKey)
+		cmd.Must(h.Config.Unlock(privateKey))
 
-		txSigned := h.NewContract(context.Background(), common.HexToAddress(initiator), participateAmount, secretHash, timeLock)
-		logger.Info("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
+		txSigned, err := h.NewContract(context.Background(), common.HexToAddress(initiator), participateAmount, secretHash, timeLock)
+		cmd.Must(err)
+
+		fmt.Printf("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 	},
 }

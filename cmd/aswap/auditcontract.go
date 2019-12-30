@@ -3,14 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
-
-	"github.com/icodezjb/atomicswap/cmd"
-	"github.com/icodezjb/atomicswap/logger"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/icodezjb/atomicswap/cmd"
 	"github.com/spf13/cobra"
 )
 
@@ -33,40 +30,33 @@ func init() {
 var auditContractCmd = &cobra.Command{
 	Use:   "auditcontract --id <contractId> [--other <contract address>]",
 	Short: "get the atomicswap pair details with the specified contractId",
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if err := h.Config.ParseConfig(h.ConfigPath); err != nil {
-			fmt.Printf("%v\n", err)
-			os.Exit(1)
-		}
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return h.Config.ParseConfig(h.ConfigPath)
 	},
 	Run: func(_ *cobra.Command, args []string) {
-		h.Config.Connect(otherContract)
+		cmd.Must(h.Config.Connect(otherContract))
 
-		h.Config.ValidateAddress(h.Config.Account)
-		h.Config.ValidateAddress(h.Config.Chain.Contract)
+		cmd.Must(h.Config.ValidateAddress(h.Config.Account))
+		cmd.Must(h.Config.ValidateAddress(h.Config.Chain.Contract))
 
-		printBanner(h.Config.Chain.Contract)
+		fmt.Println("Call getContract ...")
+		fmt.Printf("contract address: %v\n", h.Config.Chain.Contract)
 
 		contractDetails := new(cmd.ContractDetails)
 
-		h.AuditContract(context.Background(), contractDetails, "getContract", common.HexToHash(contractId))
+		cmd.Must(h.AuditContract(context.Background(), contractDetails, common.HexToHash(contractId)))
 
 		printContractDetails(contractDetails)
 	},
 }
 
-func printBanner(contract string) {
-	logger.Info("Call getContract ...")
-	logger.Info("contract address: %v\n", contract)
-}
-
 func printContractDetails(d *cmd.ContractDetails) {
-	logger.Info("Sender     = %s", d.Sender.String())
-	logger.Info("Receiver   = %s", d.Receiver.String())
-	logger.Info("Amount     = %s (wei)", d.Amount)
-	logger.Info("TimeLock   = %s (%s)", d.Timelock, time.Unix(d.Timelock.Int64(), 0))
-	logger.Info("SecretHash = %s", hexutil.Encode(d.Hashlock[:]))
-	logger.Info("Withdrawn  = %v", d.Withdrawn)
-	logger.Info("Refunded   = %v", d.Refunded)
-	logger.Info("Secret     = %s", hexutil.Encode(d.Preimage[:]))
+	fmt.Printf("Sender     = %s\n", d.Sender.String())
+	fmt.Printf("Receiver   = %s\n", d.Receiver.String())
+	fmt.Printf("Amount     = %s (wei)\n", d.Amount)
+	fmt.Printf("TimeLock   = %s (%s)\n", d.Timelock, time.Unix(d.Timelock.Int64(), 0))
+	fmt.Printf("SecretHash = %s\n", hexutil.Encode(d.Hashlock[:]))
+	fmt.Printf("Withdrawn  = %v\n", d.Withdrawn)
+	fmt.Printf("Refunded   = %v\n", d.Refunded)
+	fmt.Printf("Secret     = %s\n", hexutil.Encode(d.Preimage[:]))
 }

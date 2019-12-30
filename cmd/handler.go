@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"strings"
 
 	htlc "github.com/icodezjb/atomicswap/contract"
-	"github.com/icodezjb/atomicswap/logger"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/pkg/errors"
 )
 
 type Handler struct {
@@ -22,7 +23,7 @@ type Handler struct {
 	Config     *Config
 }
 
-func (h *Handler) estimateGas(ctx context.Context, auth *bind.TransactOpts, txType string, input []byte) {
+func (h *Handler) estimateGas(ctx context.Context, auth *bind.TransactOpts, txType string, input []byte) error {
 	contract := func() *common.Address {
 		switch {
 		case txType == "Deploy":
@@ -44,24 +45,23 @@ func (h *Handler) estimateGas(ctx context.Context, auth *bind.TransactOpts, txTy
 		Data:     input,
 	})
 	if err != nil {
-		logger.Error("Fatal to estimate gas (%v): %v", txType, err)
-		return
+		return errors.Wrapf(err, "estimate gas (%v)", txType)
 	}
 
 	feeByWei := new(big.Int).Mul(new(big.Int).SetUint64(estimateGas), auth.GasPrice).String()
 
 	balance, err := h.Config.client.BalanceAt(ctx, auth.From, nil)
 	if err != nil {
-		logger.Error("Fatal to get %v balance: %v", auth.From.String(), err)
-		return
+		return errors.Wrapf(err, "account=%v get balance", auth.From.String())
 	}
 
-	logger.Info("from = %v, balance = %v", auth.From.String(), balance)
-	logger.Info("%v Contract fee = gas(%v) * gasPrice(%v) = %v", txType, estimateGas, auth.GasPrice.String(), feeByWei)
+	fmt.Printf("from = %v, balance = %v\n", auth.From.String(), balance)
+	fmt.Printf("%v Contract fee = gas(%v) * gasPrice(%v) = %v\n", txType, estimateGas, auth.GasPrice.String(), feeByWei)
 
+	return nil
 }
 
-func (h *Handler) sendTx(ctx context.Context, auth *bind.TransactOpts, data []byte, contract *common.Address) *types.Transaction {
+func (h *Handler) sendTx(ctx context.Context, auth *bind.TransactOpts, data []byte, contract *common.Address) (*types.Transaction, error) {
 	var (
 		rawTx    *types.Transaction
 		txSigned *types.Transaction
@@ -85,67 +85,82 @@ func (h *Handler) sendTx(ctx context.Context, auth *bind.TransactOpts, data []by
 			rawTx,
 			h.Config.Chain.ID)
 	default:
-		logger.FatalError("Fatal to get sign function")
+		return nil, errors.New("unexpected sendTx error")
 	}
 
 	if err != nil {
-		logger.FatalError("Fatal to sign tx %v: %v", h.Config.Account, err)
+		return nil, errors.Wrapf(err, "account=%v sign tx ", h.Config.Account)
 	}
 
 	err = h.Config.client.SendTransaction(ctx, txSigned)
 	if err != nil {
-		logger.FatalError("Fatal to send tx: %v", err)
+		return nil, errors.Wrapf(err, "account=%v send tx", h.Config.Account)
 	}
-	return txSigned
+
+	return txSigned, nil
 }
 
-func (h *Handler) DeployContract(ctx context.Context) {
-	auth := h.Config.makeAuth(ctx, 0)
+func (h *Handler) DeployContract(ctx context.Context) error {
+	auth, err := h.Config.makeAuth(ctx, 0)
+	if err != nil {
+		return err
+	}
 
-	logger.Info("Deploy contract...")
+	fmt.Println("Deploy contract...")
 
 	input := common.FromHex(htlc.HTLCBIN)
 
 	//estimate deploy contract fee
-	h.estimateGas(ctx, auth, "Deploy", input)
+	if err := h.estimateGas(ctx, auth, "Deploy", input); err != nil {
+		return err
+	}
 
 	//deploy-contract prompt
 	h.Config.promptConfirm("Deploy")
 
 	//send tx
-	txSigned := h.sendTx(ctx, auth, input, nil)
+	txSigned, err := h.sendTx(ctx, auth, input, nil)
+	if err != nil {
+		return err
+	}
 
 	//update contract address
 	h.Config.Contract = crypto.CreateAddress(auth.From, txSigned.Nonce()).String()
 
-	logger.Info("contract address = %v", h.Config.Contract)
-	logger.Info("transaction hash = %v", txSigned.Hash().String())
+	fmt.Printf("contract address = %v\n", h.Config.Contract)
+	fmt.Printf("transaction hash = %v\n", txSigned.Hash().String())
 
 	//update config
-	h.Config.rotate(h.ConfigPath)
+	return h.Config.rotate(h.ConfigPath)
 }
 
-func (h *Handler) StatContract(ctx context.Context) {
+func (h *Handler) StatContract(ctx context.Context) error {
 	//TODO
+	return nil
 }
 
-func (h *Handler) NewContract(ctx context.Context, participant common.Address, amount int64, hashLock [32]byte, timeLock *big.Int) *types.Transaction {
-	auth := h.Config.makeAuth(ctx, amount)
+func (h *Handler) NewContract(ctx context.Context, participant common.Address, amount int64, hashLock [32]byte, timeLock *big.Int) (*types.Transaction, error) {
+	auth, err := h.Config.makeAuth(ctx, amount)
+	if err != nil {
+		return nil, errors.Wrapf(err, "make auth %v", h.Config.Account)
+	}
 
-	logger.Info("Call NewContract ...")
+	fmt.Println("Call NewContract ...")
 
 	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
-		logger.FatalError("Fatal to parse HtlcABI: %v", err)
+		return nil, errors.Wrap(err, "parse HTLCABI")
 	}
 
 	input, err := parsedABI.Pack("newContract", participant, hashLock, timeLock)
 	if err != nil {
-		logger.FatalError("Fatal to pack newContract: %v", err)
+		return nil, errors.Wrap(err, "pack newContract")
 	}
 
 	//estimate call contract fee
-	h.estimateGas(ctx, auth, "Call", input)
+	if err = h.estimateGas(ctx, auth, "Call", input); err != nil {
+		return nil, err
+	}
 
 	//call-contract prompt
 	h.Config.promptConfirm("Call")
@@ -156,45 +171,44 @@ func (h *Handler) NewContract(ctx context.Context, participant common.Address, a
 	return h.sendTx(ctx, auth, input, &contract)
 }
 
-func (h *Handler) GetContractId(ctx context.Context, txID common.Hash) HtlcLogHTLCNew {
-	logger.Info("%v(%v) txid: %v", h.Config.Chain.Name, h.Config.Chain.ID, txID.String())
-	logger.Info("contract address: %v\n", h.Config.Chain.Contract)
-
+func (h *Handler) GetContractId(ctx context.Context, txID common.Hash) (*HtlcLogHTLCNew, error) {
 	receipt, err := h.Config.client.TransactionReceipt(ctx, txID)
 	if err != nil {
-		logger.FatalError("Fatal to get tx %v receipt: %v", txID.String(), err)
+		return nil, errors.Wrapf(err, "get txid=%v receipt", txID.String())
 	}
 
 	var logHTLCEvent HtlcLogHTLCNew
 	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
-		logger.FatalError("Fatal to parse HtlcABI: %v", err)
+		return nil, errors.Wrap(err, "parse HTLCABI")
 	}
 
 	if len(receipt.Logs) == 0 {
-		logger.FatalError("len(receipt.Logs) == 0, receipt.Status = %v", receipt.Status)
+		return nil, errors.Errorf("len(receipt.Logs) == 0, receipt.Status = %v", receipt.Status)
 	}
 
 	if err := parsedABI.Unpack(&logHTLCEvent, "LogHTLCNew", receipt.Logs[0].Data); err != nil {
-		logger.FatalError("Fatal to unpack log data for LogHTLCNew: %v", err)
+		return nil, errors.Wrap(err, "unpack log data for LogHTLCNew")
 	}
 
 	logHTLCEvent.ContractId = receipt.Logs[0].Topics[1]
 	logHTLCEvent.Sender = common.HexToAddress(receipt.Logs[0].Topics[2].Hex())
 	logHTLCEvent.Receiver = common.HexToAddress(receipt.Logs[0].Topics[3].Hex())
 
-	return logHTLCEvent
+	return &logHTLCEvent, nil
 }
 
-func (h *Handler) AuditContract(ctx context.Context, result interface{}, method string, contractId common.Hash) {
+func (h *Handler) AuditContract(ctx context.Context, result interface{}, contractId common.Hash) error {
+	method := "getContract"
+
 	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
-		logger.FatalError("Fatal to parse HtlcABI: %v", err)
+		return errors.Wrap(err, "parse HTLCABI")
 	}
 
 	input, err := parsedABI.Pack(method, contractId)
 	if err != nil {
-		logger.FatalError("Fatal to pack %v: %v", method, err)
+		return errors.Wrap(err, "pack getContract")
 	}
 
 	//Call
@@ -208,38 +222,45 @@ func (h *Handler) AuditContract(ctx context.Context, result interface{}, method 
 	if err == nil && len(output) == 0 {
 		// Make sure we have a contract to operate on, and bail out otherwise.
 		if code, err := h.Config.client.CodeAt(ctx, contract, opts.BlockNumber); err != nil {
-			logger.FatalError("Fatal to call CodeAt: %v", err)
+			return errors.Wrap(err, "call CodeAt")
 		} else if len(code) == 0 {
-			logger.FatalError("no contract code at given address")
+			return errors.New("no contract code at given address")
 		}
 	}
 
 	if err != nil {
-		logger.FatalError("Fatal to call CallContract: %v", err)
+		return errors.Wrap(err, "call CallContract")
 	}
 
 	if err = parsedABI.Unpack(result, method, output); err != nil {
-		logger.FatalError("Fatal to unpack result of contract call: %v", err)
+		return errors.Wrap(err, "unpack result of contract call")
 	}
+
+	return nil
 }
 
-func (h *Handler) Redeem(ctx context.Context, contractId common.Hash, secret common.Hash) *types.Transaction {
-	auth := h.Config.makeAuth(ctx, 0)
+func (h *Handler) Redeem(ctx context.Context, contractId common.Hash, secret common.Hash) (*types.Transaction, error) {
+	auth, err := h.Config.makeAuth(ctx, 0)
+	if err != nil {
+		return nil, errors.Wrapf(err, "make auth %v", h.Config.Account)
+	}
 
-	logger.Info("Call Withdraw ...")
+	fmt.Println("Call Withdraw ...")
 
 	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
-		logger.FatalError("Fatal to parse HtlcABI: %v", err)
+		return nil, errors.Wrap(err, "parse HTLCABI")
 	}
 
 	input, err := parsedABI.Pack("withdraw", contractId, secret)
 	if err != nil {
-		logger.FatalError("Fatal to pack newContract: %v", err)
+		return nil, errors.Wrap(err, "pack withdraw")
 	}
 
 	//estimate call contract fee
-	h.estimateGas(ctx, auth, "Call", input)
+	if err = h.estimateGas(ctx, auth, "Call", input); err != nil {
+		return nil, err
+	}
 
 	//call-contract prompt
 	h.Config.promptConfirm("Call")
@@ -250,25 +271,28 @@ func (h *Handler) Redeem(ctx context.Context, contractId common.Hash, secret com
 	return h.sendTx(ctx, auth, input, &contract)
 }
 
-func (h *Handler) Refund(ctx context.Context, contractId common.Hash) *types.Transaction {
-	auth := h.Config.makeAuth(ctx, 0)
+func (h *Handler) Refund(ctx context.Context, contractId common.Hash) (*types.Transaction, error) {
+	auth, err := h.Config.makeAuth(ctx, 0)
+	if err != nil {
+		return nil, errors.Wrapf(err, "make auth %v", h.Config.Account)
+	}
 
-	logger.Info("Call Withdraw ...")
+	fmt.Println("Call Withdraw ...")
 
 	parsedABI, err := abi.JSON(strings.NewReader(htlc.HTLCABI))
 	if err != nil {
-		logger.Error("Fatal to parse HtlcABI: %v", err)
-		return nil
+		return nil, errors.Wrap(err, "parse HTLCABI")
 	}
 
 	input, err := parsedABI.Pack("refund", contractId)
 	if err != nil {
-		logger.Error("Fatal to pack newContract: %v", err)
-		return nil
+		return nil, errors.Wrap(err, "pack refund")
 	}
 
 	//estimate call contract fee
-	h.estimateGas(ctx, auth, "Call", input)
+	if err = h.estimateGas(ctx, auth, "Call", input); err != nil {
+		return nil, err
+	}
 
 	//call-contract prompt
 	h.Config.promptConfirm("Call")

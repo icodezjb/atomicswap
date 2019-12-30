@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"os"
+
+	"github.com/icodezjb/atomicswap/cmd"
 
 	"github.com/spf13/cobra"
 )
@@ -11,14 +11,12 @@ import (
 var statCmd = &cobra.Command{
 	Use:   "stat",
 	Short: "stat the atomicswap contract",
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if err := h.Config.ParseConfig(h.ConfigPath); err != nil {
-			fmt.Printf("%v\n", err)
-			os.Exit(1)
-		}
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return h.Config.ParseConfig(h.ConfigPath)
 	},
-	Run: func(cmd *cobra.Command, args []string) {
-		h.Config.Connect("")
-		h.StatContract(context.Background())
+	Run: func(_ *cobra.Command, args []string) {
+		cmd.Must(h.Config.Connect(""))
+
+		cmd.Must(h.StatContract(context.Background()))
 	},
 }

@@ -7,13 +7,12 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
 	"regexp"
 	"strings"
-
-	"github.com/icodezjb/atomicswap/logger"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -63,7 +62,8 @@ func NewSecretHashPair() *SecretHashPair {
 	s := new(SecretHashPair)
 	_, err := rand.Read(s.Secret[:])
 	if err != nil {
-		logger.FatalError("Fatal to generate secret: %v", err)
+		fmt.Printf("Fatal to generate secret: %v\n", err)
+		os.Exit(1)
 	}
 	s.Hash = sha256.Sum256(s.Secret[:])
 
@@ -95,12 +95,12 @@ func (c *Config) ParseConfig(cfgPath string) error {
 	defer configFile.Close() //nolint:staticcheck
 
 	if err != nil {
-		return errors.Wrapf(err, "open config file (%s)", cfgPath)
+		return errors.Wrap(err, "open config file")
 	}
 
 	configStr, err := ioutil.ReadAll(configFile)
 	if err != nil {
-		return errors.Wrapf(err, "read config file (%s)", cfgPath)
+		return errors.Wrap(err, "read config file")
 	}
 
 	if err := json.Unmarshal(configStr, c); err != nil {
@@ -110,7 +110,7 @@ func (c *Config) ParseConfig(cfgPath string) error {
 	return nil
 }
 
-func (c *Config) Connect(otherContract string) {
+func (c *Config) Connect(otherContract string) error {
 	c.Chain = &chain{
 		ID:       c.ChainID,
 		Name:     c.ChainName,
@@ -129,24 +129,26 @@ func (c *Config) Connect(otherContract string) {
 
 	client, err := ethclient.Dial(c.Chain.URL)
 	if err != nil {
-		logger.FatalError("Fatal to connect server: %v", err)
+		return errors.Wrapf(err, "connect to %v", c.Chain.URL)
 	}
 
 	c.client = client
+
+	return nil
 }
 
-func (c *Config) Unlock(privateKey string) {
+func (c *Config) Unlock(privateKey string) error {
 	switch {
 	case privateKey != "":
 		key, err := crypto.HexToECDSA(privateKey)
 		if err != nil {
-			logger.FatalError("Fatal to parse private key (%v): %v", privateKey, err)
+			return errors.Wrapf(err, "parse private key (%v)", privateKey)
 		}
 
 		account := crypto.PubkeyToAddress(key.PublicKey).String()
 
 		if strings.ToLower(c.Account) != strings.ToLower(account) {
-			logger.FatalError("Fatal to match the private key (%v) and account (%v)", privateKey, c.Account)
+			return errors.Errorf("mismatch private key (%s) and account (%s)", privateKey, c.Account)
 		}
 		c.key = key
 	default:
@@ -156,56 +158,57 @@ func (c *Config) Unlock(privateKey string) {
 		if c.ks.HasAddress(fromAccount.Address) {
 			err := c.ks.Unlock(fromAccount, c.Password)
 			if err != nil {
-				logger.FatalError("Fatal to unlock %v", c.Account)
+				return errors.Wrapf(err, "unlock %v keystore", c.Account)
 			}
 		} else {
-			logger.FatalError("Fatal to find %v in %v keystore (%v)", c.Account, c.KeyStore, c.ks.Accounts())
+			return errors.Errorf("not found %v in %v keystore (%v)", c.Account, c.KeyStore, c.ks.Accounts())
 		}
 	}
+
+	return nil
 }
 
-func (c *Config) ValidateAddress(address string) {
+func (c *Config) ValidateAddress(address string) error {
 	if valid := regexp.MustCompile("^0x[0-9a-fA-F]{40}$").MatchString(address); !valid {
-		logger.FatalError("Fatal to validate address: %v", address)
+		return errors.Errorf("invalid address: %v", address)
 	}
+	return nil
 }
 
-func (c *Config) rotate(cfgPath string) {
+func (c *Config) rotate(cfgPath string) error {
 	replacement, err := os.OpenFile(cfgPath+".new", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 	defer replacement.Close() //nolint:staticcheck
 
 	if err != nil {
-		logger.FatalError("Fatal to open file: %v", err)
+		return errors.Wrap(err, "open config file")
 	}
 
 	enc := json.NewEncoder(replacement)
 	enc.SetIndent("", "    ")
 
 	if err = enc.Encode(c); err != nil {
-		logger.FatalError("Fatal to encode config: %v", err)
+		return errors.Wrap(err, "encode config")
 	}
 
 	// Replace the live config with the newly generated one
-	if err = os.Rename(cfgPath+".new", cfgPath); err != nil {
-		logger.FatalError("Fatal to replace config file: %v", err)
-	}
+	return os.Rename(cfgPath+".new", cfgPath)
 }
 
-func (c *Config) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
+func (c *Config) makeAuth(ctx context.Context, value int64) (*bind.TransactOpts, error) {
 	fromAccount := accounts.Account{Address: common.HexToAddress(c.Account)}
 	nonce, err := c.client.PendingNonceAt(ctx, fromAccount.Address)
 	if err != nil {
-		logger.FatalError("Fatal to get nonce: %v", err)
+		return nil, errors.Wrapf(err, "account=%v get nonce", c.Account)
 	}
 
 	gasPrice, err := c.client.SuggestGasPrice(ctx)
 	if err != nil {
-		logger.FatalError("Fatal to get gasPrice: %v", err)
+		return nil, errors.Wrapf(err, "account=%v get gasPrice", c.Account)
 	}
 
 	auth, err := bind.NewKeyStoreTransactor(c.ks, fromAccount)
 	if err != nil {
-		logger.FatalError("Fatal to make new keystore transactor: %v", err)
+		return nil, errors.Wrapf(err, "account=%v get keystore transactor", c.Account)
 	}
 
 	auth.Nonce = big.NewInt(int64(nonce))
@@ -215,14 +218,14 @@ func (c *Config) makeAuth(ctx context.Context, value int64) *bind.TransactOpts {
 	gasPriceInt, _ := big.NewInt(0).SetString(gasPrice.String(), 10)
 	auth.GasPrice = gasPriceInt
 
-	return auth
+	return auth, nil
 }
 
 func (c *Config) promptConfirm(prefix string) {
-	logger.Info("? Confirm to %v the contract on %v(chainID = %v)? [y/N]", prefix, c.Chain.Name, c.Chain.ID)
+	fmt.Printf("? Confirm to %v the contract on %v(chainID = %v)? [y/N]\n", prefix, c.Chain.Name, c.Chain.ID)
 
 	if c.test {
-		logger.Info("Test chose: y")
+		fmt.Println("Test chose: y")
 		return
 	}
 
@@ -231,9 +234,16 @@ func (c *Config) promptConfirm(prefix string) {
 
 	input := string(data)
 	if len(input) > 0 && strings.ToLower(input[:1]) == "y" {
-		logger.Info("Your chose: y")
+		fmt.Println("Your chose: y")
 	} else {
-		logger.Info("Your chose: N")
+		fmt.Println("Your chose: N")
 		os.Exit(0)
+	}
+}
+
+func Must(err error) {
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }

@@ -3,9 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
-	"github.com/icodezjb/atomicswap/logger"
+	"github.com/icodezjb/atomicswap/cmd"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
@@ -30,26 +29,24 @@ func init() {
 var refundCmd = &cobra.Command{
 	Use:   "refund --id <contractId> [--key <private key>]",
 	Short: "refund on the contract if there was no withdraw AND the time lock has expired",
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if err := h.Config.ParseConfig(h.ConfigPath); err != nil {
-			fmt.Printf("%v\n", err)
-			os.Exit(1)
-		}
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return h.Config.ParseConfig(h.ConfigPath)
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		//check contract address
-		h.Config.ValidateAddress(h.Config.Contract)
+		cmd.Must(h.Config.ValidateAddress(h.Config.Contract))
 
 		//connect to chain
-		h.Config.Connect("")
+		cmd.Must(h.Config.Connect(""))
 
 		//Unlock account
-		h.Config.Unlock(privateKey)
+		cmd.Must(h.Config.Unlock(privateKey))
 
 		contractId := common.HexToHash(contractId)
 
-		if txSigned := h.Refund(context.Background(), contractId); txSigned != nil {
-			logger.Info("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
-		}
+		txSigned, err := h.Refund(context.Background(), contractId)
+		cmd.Must(err)
+
+		fmt.Printf("%v(%v) txid: %v\n", h.Config.Chain.Name, h.Config.Chain.ID, txSigned.Hash().String())
 	},
 }
