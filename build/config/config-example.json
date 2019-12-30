@@ -7,6 +7,6 @@
     "otherURL": "http://127.0.0.1:8545",
     "account": "0xffd79941b7085805f48ded97298694c6bb950e2c",
     "contract": "",
-    "keystoreDir": "/home/chain/workcode/src/github.com/icodezjb/atomicswap/build/config",
+    "keystoreDir": "$GOPATH/github.com/icodezjb/atomicswap/build/config",
     "password": "111111"
 }

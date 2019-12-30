@@ -482,6 +482,10 @@ func TestHandlerAll_MainFlow(t *testing.T) {
 			})
 
 			Convey("[13] initiator refund on chain1 0x12D51a18385542d53acC27011aD27E57115b8e0b should be fail", func() {
+				var b bytes.Buffer
+				log.SetOutput(&b)
+				defer log.SetOutput(os.Stderr)
+
 				_, err := h1.Refund(ctx, ContractIDOnChain1)
 
 				So(err, ShouldNotBeNil)
@@ -489,17 +493,15 @@ func TestHandlerAll_MainFlow(t *testing.T) {
 			})
 
 			Convey("[14] participant refund on chain2 0x071C14E8f6379c4f1d727fDf833024AE9C73C574 should be fail", func() {
+				var b bytes.Buffer
+				log.SetOutput(&b)
+				defer log.SetOutput(os.Stderr)
+
 				_, err := h2.Refund(ctx, ContractIDOnChain2)
 
 				So(err, ShouldNotBeNil)
 				So(err.Error(), ShouldContainSubstring, "estimate gas (Call): gas required exceeds allowance")
-
 			})
 		})
-
-		Convey("atomicswap timeout follow", func() {
-
-		})
-
 	})
 }
